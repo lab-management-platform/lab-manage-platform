@@ -129,7 +129,12 @@ interface ProjectRepository {
   listComments(taskId: string): Promise<TaskComment[]>;
   createComment(input: Omit<TaskComment, "id" | "createdAt">): Promise<TaskComment>;
   listMemberProjectIds(userId: string): Promise<Set<string>>;
-  addMember(projectId: string, userId: string, userName: string, memberRole: MemberRole): Promise<void>;
+  addMember(
+    projectId: string,
+    userId: string,
+    userName: string,
+    memberRole: MemberRole
+  ): Promise<void>;
   listMembers(projectId: string): Promise<ProjectMember[]>;
   listProgress(projectId: string): Promise<ProgressReport[]>;
   createProgress(
