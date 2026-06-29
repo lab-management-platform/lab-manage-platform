@@ -34,7 +34,10 @@ export function Topbar({
         <div className="topbar-project-head">
           <span className="topbar-label">当前项目</span>
           <div className="select-wrap project-select-wrap">
-            <select value={selectedProjectId} onChange={(event) => onSelectProject(event.target.value)}>
+            <select
+              value={selectedProjectId}
+              onChange={(event) => onSelectProject(event.target.value)}
+            >
               <option value="">全部项目</option>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -60,7 +63,9 @@ export function Topbar({
                 ? `${activeProject.status === "pending" ? "待审批" : activeProject.status === "completed" ? "已完成" : "进行中"}`
                 : "全局视图"}
             </div>
-            {activeProject ? <div className="project-meta-chip">负责人 · {activeProject.ownerName}</div> : null}
+            {activeProject ? (
+              <div className="project-meta-chip">负责人 · {activeProject.ownerName}</div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -77,7 +82,9 @@ export function Topbar({
           <div className="avatar-orb">{actor.displayName.slice(0, 1)}</div>
           <div>
             <strong>{actor.displayName}</strong>
-            <span>{roleText(actor.role)} / {actor.role === "professor" ? "项目负责人" : actor.username}</span>
+            <span>
+              {roleText(actor.role)} / {actor.role === "professor" ? "项目负责人" : actor.username}
+            </span>
           </div>
         </div>
         <button type="button" className="secondary-button" onClick={onLogout}>
