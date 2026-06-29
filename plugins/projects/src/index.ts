@@ -82,6 +82,11 @@ interface CommentCreateRequest {
   content: string;
 }
 
+interface CreateProgressRequest {
+  title?: string;
+  content?: string;
+}
+
 type MemberRole = "leader" | "member" | "advisor" | "manager";
 
 interface ProjectMember {
@@ -604,7 +609,7 @@ class PostgresProjectRepository implements ProjectRepository {
       "SELECT project_id FROM projects.project_member WHERE user_id = $1",
       [userId]
     );
-    return new Set(r.rows.map((row: any) => row.project_id));
+    return new Set(r.rows.map((row: Record<string, unknown>) => String(row.project_id)));
   }
 
   async addMember(
@@ -625,13 +630,7 @@ class PostgresProjectRepository implements ProjectRepository {
       "SELECT project_id, user_id, user_name, member_role, joined_at FROM projects.project_member WHERE project_id = $1",
       [projectId]
     );
-    return r.rows.map((row: any) => ({
-      projectId: row.project_id,
-      userId: row.user_id,
-      userName: row.user_name,
-      memberRole: row.member_role,
-      joinedAt: String(row.joined_at)
-    }));
+    return r.rows.map(mapMemberRow);
   }
 
   async listProgress(projectId: string): Promise<ProgressReport[]> {
@@ -639,16 +638,7 @@ class PostgresProjectRepository implements ProjectRepository {
       "SELECT * FROM projects.progress_report WHERE project_id = $1 ORDER BY created_at DESC",
       [projectId]
     );
-    return r.rows.map((row: any) => ({
-      id: row.id,
-      projectId: row.project_id,
-      authorId: row.author_id,
-      authorName: row.author_name,
-      title: row.title,
-      content: row.content,
-      createdAt: String(row.created_at),
-      updatedAt: String(row.updated_at)
-    }));
+    return r.rows.map(mapProgressRow);
   }
 
   async createProgress(
@@ -729,6 +719,29 @@ function mapCommentRow(row: Record<string, unknown>): TaskComment {
     authorName: String(row.author_name),
     content: String(row.content),
     createdAt: new Date(String(row.created_at)).toISOString()
+  };
+}
+
+function mapMemberRow(row: Record<string, unknown>): ProjectMember {
+  return {
+    projectId: String(row.project_id),
+    userId: String(row.user_id),
+    userName: row.user_name ? String(row.user_name) : undefined,
+    memberRole: row.member_role as MemberRole,
+    joinedAt: String(row.joined_at)
+  };
+}
+
+function mapProgressRow(row: Record<string, unknown>): ProgressReport {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    authorId: String(row.author_id),
+    authorName: String(row.author_name),
+    title: String(row.title),
+    content: String(row.content),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at)
   };
 }
 
@@ -910,7 +923,10 @@ export const projectsPlugin: PluginManifest = {
             if (req.startsAt !== undefined) updateInput.startsAt = req.startsAt;
             if (req.endsAt !== undefined) updateInput.endsAt = req.endsAt;
             if (req.status !== undefined) updateInput.status = req.status;
-            const project = await repo.updateProject(params.id, updateInput as any);
+            const project = await repo.updateProject(
+              params.id,
+              updateInput as Partial<Omit<Project, "id" | "createdAt" | "updatedAt">>
+            );
             if (!project) return { status: 404, body: { error: "项目未找到" } };
 
             await context.eventBus.publish(
@@ -951,7 +967,7 @@ export const projectsPlugin: PluginManifest = {
           summary: "上传进度报告",
           handler: async ({ actor, params, body }) => {
             if (!actor) return { status: 401, body: { error: "Unauthorized" } };
-            const req = body as any;
+            const req = body as CreateProgressRequest;
             if (!req.title?.trim()) return { status: 400, body: { error: "title required" } };
             const report = await repo.createProgress(
               params.id,

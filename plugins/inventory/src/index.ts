@@ -23,6 +23,7 @@ interface InventoryApplication {
   materialName: string;
   applicantId: string;
   applicantName: string;
+  projectId?: string;
   quantity: number;
   reason: string;
   status: ApplicationStatus;
@@ -832,9 +833,9 @@ export const inventoryPlugin: PluginManifest = {
           summary: "获取耗材申请列表（可按项目筛选）",
           handler: async ({ query }) => {
             const all = await repository.listApplications();
-            const projectId = (query as any)?.projectId as string | undefined;
+            const projectId = (query as { projectId?: string })?.projectId;
             if (projectId)
-              return { body: all.filter((a: any) => a.project_id === projectId || !a.project_id) };
+              return { body: all.filter((a) => a.projectId === projectId || !a.projectId) };
             return { body: all };
           }
         },
