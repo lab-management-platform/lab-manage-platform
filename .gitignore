@@ -43,6 +43,7 @@ coverage/
 # MCP config (local machine paths)
 .mcp.json
 CLAUDE.md
+.ai/
 
 # Temp files
 *.tmp

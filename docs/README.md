@@ -5,7 +5,7 @@
 ## 核心入口
 
 - [../README.md](../README.md): 项目概览、启动方式、常用命令
-- [../CLAUDE.md](../CLAUDE.md): AI 协同开发上下文与当前架构说明
+- 本地 AI 协作文档：`.ai/AI_COLLAB_CONTEXT.md`（仅本机使用，已 gitignore）
 
 ## 开发与架构
 

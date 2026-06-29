@@ -71,6 +71,9 @@ importers:
       '@lab/plugin-inventory':
         specifier: workspace:*
         version: link:../../plugins/inventory
+      '@lab/plugin-projects':
+        specifier: workspace:*
+        version: link:../../plugins/projects
       fastify:
         specifier: ^5.1.0
         version: 5.8.5
@@ -182,6 +185,25 @@ importers:
       '@types/pg':
         specifier: ^8.20.0
         version: 8.20.0
+
+  plugins/projects:
+    dependencies:
+      '@lab/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@lab/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      pg:
+        specifier: ^8.13.0
+        version: 8.20.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.20.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
 
 packages:
 
