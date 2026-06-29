@@ -18,6 +18,7 @@ interface Project {
   startsAt?: string;
   endsAt?: string;
   status: ProjectStatus;
+  memberIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -128,7 +129,7 @@ interface ProjectRepository {
   listComments(taskId: string): Promise<TaskComment[]>;
   createComment(input: Omit<TaskComment, "id" | "createdAt">): Promise<TaskComment>;
   listMemberProjectIds(userId: string): Promise<Set<string>>;
-  addMember(projectId: string, userId: string, userName: string, memberRole: string): Promise<void>;
+  addMember(projectId: string, userId: string, userName: string, memberRole: MemberRole): Promise<void>;
   listMembers(projectId: string): Promise<ProjectMember[]>;
   listProgress(projectId: string): Promise<ProgressReport[]>;
   createProgress(
@@ -298,7 +299,7 @@ class MemoryProjectRepository implements ProjectRepository {
     projectId: string,
     userId: string,
     userName: string,
-    memberRole: string
+    memberRole: MemberRole
   ): Promise<void> {
     if (!this.members.some((m) => m.projectId === projectId && m.userId === userId)) {
       this.members.push({
@@ -616,7 +617,7 @@ class PostgresProjectRepository implements ProjectRepository {
     projectId: string,
     userId: string,
     userName: string,
-    memberRole: string
+    memberRole: MemberRole
   ): Promise<void> {
     await this.pool.query(
       `INSERT INTO projects.project_member (project_id, user_id, user_name, member_role)
@@ -1002,7 +1003,7 @@ export const projectsPlugin: PluginManifest = {
             if (!project) return { status: 404, body: { error: "项目未找到" } };
 
             const assigneeName = req.assigneeId
-              ? project.memberIds.includes(req.assigneeId)
+              ? project.memberIds?.includes(req.assigneeId)
                 ? `成员 ${req.assigneeId}`
                 : undefined
               : undefined;

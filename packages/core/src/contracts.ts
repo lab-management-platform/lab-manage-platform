@@ -1,4 +1,4 @@
-export type Role = "student" | "professor" | "lab_admin";
+export type Role = "student" | "professor" | "lab_admin" | "member" | "admin" | "super_admin";
 
 export type Permission =
   | "user:read"

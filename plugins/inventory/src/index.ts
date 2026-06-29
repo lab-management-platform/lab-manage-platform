@@ -508,7 +508,7 @@ class PostgresInventoryRepository implements InventoryRepository {
         materialName: material.name,
         applicantId: input.actorId,
         applicantName: `成员 ${input.actorId}`,
-        projectId: input.projectId ?? null,
+        projectId: undefined,
         quantity: input.quantity,
         reason: input.reason?.trim() || "未填写",
         status: "pending",

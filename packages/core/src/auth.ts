@@ -47,6 +47,48 @@ const rolePermissions: Record<Role, Permission[]> = {
     "project:read",
     "meeting:read",
     "ai:use"
+  ],
+  member: [
+    "inventory:read",
+    "inventory:apply",
+    "file:read",
+    "project:read",
+    "meeting:read",
+    "ai:use"
+  ],
+  admin: [
+    "user:read",
+    "user:write",
+    "inventory:read",
+    "inventory:apply",
+    "inventory:approve",
+    "inventory:stock",
+    "file:read",
+    "file:write",
+    "project:read",
+    "project:write",
+    "project:progress",
+    "meeting:read",
+    "meeting:write",
+    "ai:use",
+    "ai:manage"
+  ],
+  super_admin: [
+    "user:read",
+    "user:write",
+    "inventory:read",
+    "inventory:apply",
+    "inventory:approve",
+    "inventory:stock",
+    "file:read",
+    "file:write",
+    "project:read",
+    "project:write",
+    "project:progress",
+    "meeting:read",
+    "meeting:write",
+    "ai:use",
+    "ai:manage"
   ]
 };
 
