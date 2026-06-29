@@ -43,20 +43,40 @@ export function DashboardPage({
         <div>
           <p className="eyebrow">实验室运营总览</p>
           <h1>欢迎回来，{actorName}</h1>
-          <p className="hero-copy">项目、库存、通知和知识协作都集中在模块页里处理，不再通过长页面滚动查找入口。</p>
+          <p className="hero-copy">
+            项目、库存、通知和知识协作都集中在模块页里处理，不再通过长页面滚动查找入口。
+          </p>
         </div>
         <div className="hero-stats">
-          <StatCard title="待审批" value={summary.pendingApplications} hint="需要处理的领用申请" accent="gold" />
+          <StatCard
+            title="待审批"
+            value={summary.pendingApplications}
+            hint="需要处理的领用申请"
+            accent="gold"
+          />
           <StatCard title="项目进行中" value={activeProjects.length} hint="跨课题并行推进" />
-          <StatCard title="低库存预警" value={summary.lowStockCount} hint="建议优先补货" accent="danger" />
-          <StatCard title="已批准" value={summary.approvedApplications} hint="本周期流转完成" accent="ink" />
+          <StatCard
+            title="低库存预警"
+            value={summary.lowStockCount}
+            hint="建议优先补货"
+            accent="danger"
+          />
+          <StatCard
+            title="已批准"
+            value={summary.approvedApplications}
+            hint="本周期流转完成"
+            accent="ink"
+          />
         </div>
       </section>
 
       <div className="split-layout">
         <SectionCard title="项目概览" eyebrow="Projects">
           {activeProjects.length === 0 ? (
-            <EmptyState title="暂无进行中的项目" text="创建或激活项目后，这里会展示负责人、周期与状态。" />
+            <EmptyState
+              title="暂无进行中的项目"
+              text="创建或激活项目后，这里会展示负责人、周期与状态。"
+            />
           ) : (
             <div className="data-list">
               {activeProjects.slice(0, 4).map((project) => (
@@ -67,7 +87,11 @@ export function DashboardPage({
                   </div>
                   <div>
                     <small>周期</small>
-                    <span>{project.endsAt ? new Date(project.endsAt).toLocaleDateString("zh-CN") : "未设定"}</span>
+                    <span>
+                      {project.endsAt
+                        ? new Date(project.endsAt).toLocaleDateString("zh-CN")
+                        : "未设定"}
+                    </span>
                   </div>
                   <StatusBadge tone="active">进行中</StatusBadge>
                 </article>
@@ -87,7 +111,12 @@ export function DashboardPage({
                     <strong>{item.title}</strong>
                     <p>{item.content}</p>
                   </div>
-                  <small>{new Date(item.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</small>
+                  <small>
+                    {new Date(item.createdAt).toLocaleTimeString("zh-CN", {
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </small>
                 </article>
               ))}
             </div>
@@ -108,7 +137,13 @@ export function DashboardPage({
                     <small>{task.assigneeName ?? "待指派"}</small>
                   </div>
                   <StatusBadge tone={task.status === "done" ? "muted" : "pending"}>
-                    {task.status === "in_progress" ? "进行中" : task.status === "review" ? "待评审" : task.status === "done" ? "已完成" : "待开始"}
+                    {task.status === "in_progress"
+                      ? "进行中"
+                      : task.status === "review"
+                        ? "待评审"
+                        : task.status === "done"
+                          ? "已完成"
+                          : "待开始"}
                   </StatusBadge>
                 </article>
               ))}
@@ -127,7 +162,9 @@ export function DashboardPage({
                     <strong>{material.name}</strong>
                     <small>{material.spec}</small>
                   </div>
-                  <span className="numeric">{material.stock} {material.unit}</span>
+                  <span className="numeric">
+                    {material.stock} {material.unit}
+                  </span>
                 </article>
               ))}
             </div>

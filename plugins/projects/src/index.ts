@@ -126,7 +126,13 @@ interface ProjectRepository {
   addMember(projectId: string, userId: string, userName: string, memberRole: string): Promise<void>;
   listMembers(projectId: string): Promise<ProjectMember[]>;
   listProgress(projectId: string): Promise<ProgressReport[]>;
-  createProgress(projectId: string, authorId: string, authorName: string, title: string, content: string): Promise<ProgressReport>;
+  createProgress(
+    projectId: string,
+    authorId: string,
+    authorName: string,
+    title: string,
+    content: string
+  ): Promise<ProgressReport>;
 }
 
 // ── Seed Data ──────────────────────────────────────────
@@ -147,8 +153,20 @@ const seedProjects: Project[] = [
 ];
 
 const seedMembers: ProjectMember[] = [
-  { projectId: "proj-001", userId: "u-prof001", userName: "张教授", memberRole: "manager", joinedAt: new Date().toISOString() },
-  { projectId: "proj-001", userId: "u-student001", userName: "学生一号", memberRole: "leader", joinedAt: new Date().toISOString() },
+  {
+    projectId: "proj-001",
+    userId: "u-prof001",
+    userName: "张教授",
+    memberRole: "manager",
+    joinedAt: new Date().toISOString()
+  },
+  {
+    projectId: "proj-001",
+    userId: "u-student001",
+    userName: "学生一号",
+    memberRole: "leader",
+    joinedAt: new Date().toISOString()
+  }
 ];
 
 const seedTasks: ProjectTask[] = [
@@ -268,16 +286,23 @@ class MemoryProjectRepository implements ProjectRepository {
   }
 
   async listMemberProjectIds(userId: string): Promise<Set<string>> {
-    return new Set(
-      this.members
-        .filter((m) => m.userId === userId)
-        .map((m) => m.projectId)
-    );
+    return new Set(this.members.filter((m) => m.userId === userId).map((m) => m.projectId));
   }
 
-  async addMember(projectId: string, userId: string, userName: string, memberRole: string): Promise<void> {
+  async addMember(
+    projectId: string,
+    userId: string,
+    userName: string,
+    memberRole: string
+  ): Promise<void> {
     if (!this.members.some((m) => m.projectId === projectId && m.userId === userId)) {
-      this.members.push({ projectId, userId, userName, memberRole, joinedAt: new Date().toISOString() });
+      this.members.push({
+        projectId,
+        userId,
+        userName,
+        memberRole,
+        joinedAt: new Date().toISOString()
+      });
     }
   }
 
@@ -291,10 +316,22 @@ class MemoryProjectRepository implements ProjectRepository {
     return this.progressReports.filter((r) => r.projectId === projectId);
   }
 
-  async createProgress(projectId: string, authorId: string, authorName: string, title: string, content: string): Promise<ProgressReport> {
+  async createProgress(
+    projectId: string,
+    authorId: string,
+    authorName: string,
+    title: string,
+    content: string
+  ): Promise<ProgressReport> {
     const report: ProgressReport = {
-      id: randomUUID(), projectId, authorId, authorName, title, content,
-      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+      id: randomUUID(),
+      projectId,
+      authorId,
+      authorName,
+      title,
+      content,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     this.progressReports.unshift(report);
     return report;
@@ -570,7 +607,12 @@ class PostgresProjectRepository implements ProjectRepository {
     return new Set(r.rows.map((row: any) => row.project_id));
   }
 
-  async addMember(projectId: string, userId: string, userName: string, memberRole: string): Promise<void> {
+  async addMember(
+    projectId: string,
+    userId: string,
+    userName: string,
+    memberRole: string
+  ): Promise<void> {
     await this.pool.query(
       `INSERT INTO projects.project_member (project_id, user_id, user_name, member_role)
        VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
@@ -584,8 +626,11 @@ class PostgresProjectRepository implements ProjectRepository {
       [projectId]
     );
     return r.rows.map((row: any) => ({
-      projectId: row.project_id, userId: row.user_id, userName: row.user_name,
-      memberRole: row.member_role, joinedAt: String(row.joined_at)
+      projectId: row.project_id,
+      userId: row.user_id,
+      userName: row.user_name,
+      memberRole: row.member_role,
+      joinedAt: String(row.joined_at)
     }));
   }
 
@@ -595,13 +640,24 @@ class PostgresProjectRepository implements ProjectRepository {
       [projectId]
     );
     return r.rows.map((row: any) => ({
-      id: row.id, projectId: row.project_id, authorId: row.author_id,
-      authorName: row.author_name, title: row.title, content: row.content,
-      createdAt: String(row.created_at), updatedAt: String(row.updated_at)
+      id: row.id,
+      projectId: row.project_id,
+      authorId: row.author_id,
+      authorName: row.author_name,
+      title: row.title,
+      content: row.content,
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at)
     }));
   }
 
-  async createProgress(projectId: string, authorId: string, authorName: string, title: string, content: string): Promise<ProgressReport> {
+  async createProgress(
+    projectId: string,
+    authorId: string,
+    authorName: string,
+    title: string,
+    content: string
+  ): Promise<ProgressReport> {
     const r = await this.pool.query(
       `INSERT INTO projects.progress_report (id, project_id, author_id, author_name, title, content)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
@@ -609,9 +665,14 @@ class PostgresProjectRepository implements ProjectRepository {
     );
     const row = r.rows[0];
     return {
-      id: row.id, projectId: row.project_id, authorId: row.author_id,
-      authorName: row.author_name, title: row.title, content: row.content,
-      createdAt: String(row.created_at), updatedAt: String(row.updated_at)
+      id: row.id,
+      projectId: row.project_id,
+      authorId: row.author_id,
+      authorName: row.author_name,
+      title: row.title,
+      content: row.content,
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at)
     };
   }
 
@@ -697,9 +758,24 @@ export const projectsPlugin: PluginManifest = {
     { method: "GET", path: "/projects/:id", permission: "project:read", summary: "获取项目详情" },
     { method: "POST", path: "/projects", permission: "project:write", summary: "创建项目" },
     { method: "PATCH", path: "/projects/:id", permission: "project:write", summary: "更新项目" },
-    { method: "GET", path: "/projects/:id/members", permission: "project:read", summary: "获取项目成员" },
-    { method: "GET", path: "/projects/:id/progress", permission: "project:read", summary: "获取进度报告" },
-    { method: "POST", path: "/projects/:id/progress", permission: "project:progress", summary: "上传进度报告" },
+    {
+      method: "GET",
+      path: "/projects/:id/members",
+      permission: "project:read",
+      summary: "获取项目成员"
+    },
+    {
+      method: "GET",
+      path: "/projects/:id/progress",
+      permission: "project:read",
+      summary: "获取进度报告"
+    },
+    {
+      method: "POST",
+      path: "/projects/:id/progress",
+      permission: "project:progress",
+      summary: "上传进度报告"
+    },
     {
       method: "GET",
       path: "/projects/:id/tasks",
@@ -853,28 +929,36 @@ export const projectsPlugin: PluginManifest = {
         },
         // GET /projects/:id/members
         {
-          method: "GET", path: "/projects/:id/members", permission: "project:read",
+          method: "GET",
+          path: "/projects/:id/members",
+          permission: "project:read",
           summary: "获取项目成员",
           handler: async ({ params }) => ({ body: await repo.listMembers(params.id) })
         },
         // GET /projects/:id/progress
         {
-          method: "GET", path: "/projects/:id/progress", permission: "project:read",
+          method: "GET",
+          path: "/projects/:id/progress",
+          permission: "project:read",
           summary: "获取进度报告",
           handler: async ({ params }) => ({ body: await repo.listProgress(params.id) })
         },
         // POST /projects/:id/progress
         {
-          method: "POST", path: "/projects/:id/progress", permission: "project:progress",
+          method: "POST",
+          path: "/projects/:id/progress",
+          permission: "project:progress",
           summary: "上传进度报告",
           handler: async ({ actor, params, body }) => {
             if (!actor) return { status: 401, body: { error: "Unauthorized" } };
             const req = body as any;
             if (!req.title?.trim()) return { status: 400, body: { error: "title required" } };
             const report = await repo.createProgress(
-              params.id, actor.id,
+              params.id,
+              actor.id,
               actor.displayName ?? actor.username ?? "",
-              req.title, req.content ?? ""
+              req.title,
+              req.content ?? ""
             );
             return { status: 201, body: report };
           }

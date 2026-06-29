@@ -19,10 +19,21 @@ interface LoginFormProps {
 }
 
 export function LoginForm({
-  username, setUsername, password, setPassword, loading, message,
-  resetMode, setResetMode,
-  resetIdentifier, setResetIdentifier, resetPhone, setResetPhone, resetResult,
-  onSubmit, onResetPassword
+  username,
+  setUsername,
+  password,
+  setPassword,
+  loading,
+  message,
+  resetMode,
+  setResetMode,
+  resetIdentifier,
+  setResetIdentifier,
+  resetPhone,
+  setResetPhone,
+  resetResult,
+  onSubmit,
+  onResetPassword
 }: LoginFormProps) {
   if (resetMode) {
     return (
@@ -63,13 +74,17 @@ export function LoginForm({
           {resetResult ? (
             <div className="reset-result">
               <p>{resetResult}</p>
-              {resetResult.includes("新密码") ? null : (
-                <p>如无法自助找回，请联系实验室管理员。</p>
-              )}
+              {resetResult.includes("新密码") ? null : <p>如无法自助找回，请联系实验室管理员。</p>}
             </div>
           ) : null}
 
-          <button type="button" className="ghost" onClick={() => { setResetMode(false); }}>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              setResetMode(false);
+            }}
+          >
             <span aria-hidden="true">←</span>
             返回登录
           </button>

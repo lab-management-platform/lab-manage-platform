@@ -1,12 +1,6 @@
 import { useMemo, useState } from "react";
 import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
-import type {
-  Actor,
-  ProgressReport,
-  Project,
-  ProjectMember,
-  ProjectTask
-} from "../../types";
+import type { Actor, ProgressReport, Project, ProjectMember, ProjectTask } from "../../types";
 
 interface ProjectsPageProps {
   actor: Actor;
@@ -25,7 +19,11 @@ interface ProjectsPageProps {
     priority: string;
   }) => Promise<void>;
   onCompleteTask: (projectId: string, taskId: string) => Promise<void>;
-  onCreateProgress: (payload: { projectId: string; title: string; content: string }) => Promise<void>;
+  onCreateProgress: (payload: {
+    projectId: string;
+    title: string;
+    content: string;
+  }) => Promise<void>;
 }
 
 export function ProjectsPage({
@@ -70,15 +68,31 @@ export function ProjectsPage({
               <button
                 key={project.id}
                 type="button"
-                className={project.id === activeProject?.id ? "project-tile active" : "project-tile"}
+                className={
+                  project.id === activeProject?.id ? "project-tile active" : "project-tile"
+                }
                 onClick={() => onSelectProject(project.id)}
               >
                 <div>
                   <strong>{project.name}</strong>
                   <small>{project.ownerName}</small>
                 </div>
-                <StatusBadge tone={project.status === "active" ? "active" : project.status === "pending" ? "pending" : "muted"}>
-                  {project.status === "active" ? "进行中" : project.status === "pending" ? "待审批" : project.status === "completed" ? "已完成" : "已归档"}
+                <StatusBadge
+                  tone={
+                    project.status === "active"
+                      ? "active"
+                      : project.status === "pending"
+                        ? "pending"
+                        : "muted"
+                  }
+                >
+                  {project.status === "active"
+                    ? "进行中"
+                    : project.status === "pending"
+                      ? "待审批"
+                      : project.status === "completed"
+                        ? "已完成"
+                        : "已归档"}
                 </StatusBadge>
               </button>
             ))}
@@ -99,7 +113,9 @@ export function ProjectsPage({
                 项目名称
                 <input
                   value={draftProject.name}
-                  onChange={(event) => setDraftProject((current) => ({ ...current, name: event.target.value }))}
+                  onChange={(event) =>
+                    setDraftProject((current) => ({ ...current, name: event.target.value }))
+                  }
                 />
               </label>
               <label>
@@ -123,7 +139,11 @@ export function ProjectsPage({
           eyebrow="Project Detail"
           extra={
             activeProject?.status === "pending" && actor.permissions.includes("project:write") ? (
-              <button className="secondary-button" type="button" onClick={() => onApproveProject(activeProject.id)}>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => onApproveProject(activeProject.id)}
+              >
                 通过立项
               </button>
             ) : null
@@ -139,8 +159,18 @@ export function ProjectsPage({
                 <div className="meta-grid">
                   <span>负责人：{activeProject.ownerName}</span>
                   <span>状态：{activeProject.status}</span>
-                  <span>开始：{activeProject.startsAt ? new Date(activeProject.startsAt).toLocaleDateString("zh-CN") : "未设定"}</span>
-                  <span>截止：{activeProject.endsAt ? new Date(activeProject.endsAt).toLocaleDateString("zh-CN") : "未设定"}</span>
+                  <span>
+                    开始：
+                    {activeProject.startsAt
+                      ? new Date(activeProject.startsAt).toLocaleDateString("zh-CN")
+                      : "未设定"}
+                  </span>
+                  <span>
+                    截止：
+                    {activeProject.endsAt
+                      ? new Date(activeProject.endsAt).toLocaleDateString("zh-CN")
+                      : "未设定"}
+                  </span>
                 </div>
               </article>
 
@@ -185,11 +215,15 @@ export function ProjectsPage({
                 <input
                   placeholder="新增项目任务"
                   value={taskDraft.title}
-                  onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))}
+                  onChange={(event) =>
+                    setTaskDraft((current) => ({ ...current, title: event.target.value }))
+                  }
                 />
                 <select
                   value={taskDraft.priority}
-                  onChange={(event) => setTaskDraft((current) => ({ ...current, priority: event.target.value }))}
+                  onChange={(event) =>
+                    setTaskDraft((current) => ({ ...current, priority: event.target.value }))
+                  }
                 >
                   <option value="low">低</option>
                   <option value="medium">中</option>
@@ -202,7 +236,10 @@ export function ProjectsPage({
 
             <div className="data-list">
               {tasks.length === 0 ? (
-                <EmptyState title="暂无任务" text="给当前项目创建任务后，这里会形成可追踪的执行列表。" />
+                <EmptyState
+                  title="暂无任务"
+                  text="给当前项目创建任务后，这里会形成可追踪的执行列表。"
+                />
               ) : (
                 tasks.map((task) => (
                   <article key={task.id} className="task-card">
@@ -212,7 +249,15 @@ export function ProjectsPage({
                     </div>
                     <p>{task.description || "暂无任务说明。"}</p>
                     <div className="row-inline">
-                      <StatusBadge tone={task.status === "done" ? "muted" : task.status === "in_progress" ? "active" : "pending"}>
+                      <StatusBadge
+                        tone={
+                          task.status === "done"
+                            ? "muted"
+                            : task.status === "in_progress"
+                              ? "active"
+                              : "pending"
+                        }
+                      >
                         {task.status}
                       </StatusBadge>
                       {task.status !== "done" && activeProject ? (
@@ -265,7 +310,10 @@ export function ProjectsPage({
 
             <div className="data-list">
               {progressReports.length === 0 ? (
-                <EmptyState title="暂无进度报告" text="上传周报、阶段总结或关键实验结果后会显示在这里。" />
+                <EmptyState
+                  title="暂无进度报告"
+                  text="上传周报、阶段总结或关键实验结果后会显示在这里。"
+                />
               ) : (
                 progressReports.map((report) => (
                   <article key={report.id} className="progress-card">

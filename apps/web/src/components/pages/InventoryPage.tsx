@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
-import type { Actor, InventoryApplication, Material, Project, StockMovement, Summary } from "../../types";
+import type {
+  Actor,
+  InventoryApplication,
+  Material,
+  Project,
+  StockMovement,
+  Summary
+} from "../../types";
 
 interface InventoryPageProps {
   actor: Actor;
@@ -42,7 +49,8 @@ export function InventoryPage({
   const [stockInQuantity, setStockInQuantity] = useState(10);
   const [reviewRemark, setReviewRemark] = useState("库存确认无误，批准领用。");
 
-  const selectedMaterial = materials.find((material) => material.id === selectedMaterialId) ?? materials[0];
+  const selectedMaterial =
+    materials.find((material) => material.id === selectedMaterialId) ?? materials[0];
   const filteredApplications = useMemo(
     () =>
       selectedProjectId
@@ -79,7 +87,9 @@ export function InventoryPage({
               <button
                 key={material.id}
                 type="button"
-                className={material.id === selectedMaterial?.id ? "catalog-card active" : "catalog-card"}
+                className={
+                  material.id === selectedMaterial?.id ? "catalog-card active" : "catalog-card"
+                }
                 onClick={() => setSelectedMaterialId(material.id)}
               >
                 <div>
@@ -104,10 +114,16 @@ export function InventoryPage({
             <div className="column-layout">
               <article className="detail-card">
                 <strong>{selectedMaterial.name}</strong>
-                <p>{selectedMaterial.spec} · 负责人 {selectedMaterial.manager}</p>
+                <p>
+                  {selectedMaterial.spec} · 负责人 {selectedMaterial.manager}
+                </p>
                 <div className="meta-grid">
-                  <span>库存：{selectedMaterial.stock} {selectedMaterial.unit}</span>
-                  <span>预警线：{selectedMaterial.warnStock} {selectedMaterial.unit}</span>
+                  <span>
+                    库存：{selectedMaterial.stock} {selectedMaterial.unit}
+                  </span>
+                  <span>
+                    预警线：{selectedMaterial.warnStock} {selectedMaterial.unit}
+                  </span>
                   <span>位置：{selectedMaterial.location}</span>
                 </div>
               </article>
@@ -181,7 +197,10 @@ export function InventoryPage({
         <SectionCard title="申请队列" eyebrow="Applications">
           <div className="data-list">
             {filteredApplications.length === 0 ? (
-              <EmptyState title="当前没有申请记录" text="提交领用申请后，审批队列会在这里集中展示。" />
+              <EmptyState
+                title="当前没有申请记录"
+                text="提交领用申请后，审批队列会在这里集中展示。"
+              />
             ) : (
               filteredApplications.map((item) => (
                 <article key={item.id} className="approval-card">
@@ -193,10 +212,23 @@ export function InventoryPage({
                   </div>
                   <p>{item.reason}</p>
                   <div className="row-inline">
-                    <StatusBadge tone={item.status === "approved" ? "active" : item.status === "rejected" ? "danger" : "pending"}>
-                      {item.status === "pending" ? "待审批" : item.status === "approved" ? "已批准" : "已拒绝"}
+                    <StatusBadge
+                      tone={
+                        item.status === "approved"
+                          ? "active"
+                          : item.status === "rejected"
+                            ? "danger"
+                            : "pending"
+                      }
+                    >
+                      {item.status === "pending"
+                        ? "待审批"
+                        : item.status === "approved"
+                          ? "已批准"
+                          : "已拒绝"}
                     </StatusBadge>
-                    {item.status === "pending" && actor.permissions.includes("inventory:approve") ? (
+                    {item.status === "pending" &&
+                    actor.permissions.includes("inventory:approve") ? (
                       <div className="row-inline">
                         <button
                           type="button"
@@ -208,7 +240,9 @@ export function InventoryPage({
                         <button
                           type="button"
                           className="tertiary-button ghost-tone"
-                          onClick={() => onReviewApplication(item.id, "reject", "请补充实验说明后重新提交。")}
+                          onClick={() =>
+                            onReviewApplication(item.id, "reject", "请补充实验说明后重新提交。")
+                          }
                         >
                           驳回
                         </button>
@@ -222,7 +256,10 @@ export function InventoryPage({
           {actor.permissions.includes("inventory:approve") ? (
             <label>
               审批备注模板
-              <input value={reviewRemark} onChange={(event) => setReviewRemark(event.target.value)} />
+              <input
+                value={reviewRemark}
+                onChange={(event) => setReviewRemark(event.target.value)}
+              />
             </label>
           ) : null}
         </SectionCard>

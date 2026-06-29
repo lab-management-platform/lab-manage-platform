@@ -142,7 +142,10 @@ export function AiPage({
                   title: knowledgeDraft.title,
                   content: knowledgeDraft.content,
                   category: knowledgeDraft.category,
-                  tags: knowledgeDraft.tags.split(",").map((item) => item.trim()).filter(Boolean)
+                  tags: knowledgeDraft.tags
+                    .split(",")
+                    .map((item) => item.trim())
+                    .filter(Boolean)
                 });
                 setKnowledgeDraft({ title: "", content: "", category: "general", tags: "" });
               }}
@@ -191,7 +194,10 @@ export function AiPage({
           <SectionCard title="已收录文档" eyebrow="Documents">
             <div className="data-list">
               {knowledgeDocs.length === 0 ? (
-                <EmptyState title="暂无知识文档" text="添加常见流程、SOP 或项目背景后，AI 回复会更可靠。" />
+                <EmptyState
+                  title="暂无知识文档"
+                  text="添加常见流程、SOP 或项目背景后，AI 回复会更可靠。"
+                />
               ) : (
                 knowledgeDocs.map((doc) => (
                   <article key={doc.id} className="knowledge-card">
@@ -203,7 +209,11 @@ export function AiPage({
                       <StatusBadge tone="muted">{doc.tags.join(" / ") || "未标记"}</StatusBadge>
                     </div>
                     <p>{doc.content}</p>
-                    <button type="button" className="tertiary-button" onClick={() => onDeleteKnowledge(doc.id)}>
+                    <button
+                      type="button"
+                      className="tertiary-button"
+                      onClick={() => onDeleteKnowledge(doc.id)}
+                    >
                       删除
                     </button>
                   </article>

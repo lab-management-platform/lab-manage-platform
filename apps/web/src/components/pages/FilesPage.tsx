@@ -36,13 +36,18 @@ export function FilesPage({ actor, files, versions, onSelectFile }: FilesPagePro
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <span className="panel-tag">{actor.permissions.includes("file:write") ? "可管理文件" : "只读访问"}</span>
+          <span className="panel-tag">
+            {actor.permissions.includes("file:write") ? "可管理文件" : "只读访问"}
+          </span>
         </div>
 
         <div className="file-browser-layout">
           <div className="file-card-grid">
             {visibleFiles.length === 0 ? (
-              <EmptyState title="未找到匹配资料" text="换个关键词试试，或者在后端先创建文件资料。" />
+              <EmptyState
+                title="未找到匹配资料"
+                text="换个关键词试试，或者在后端先创建文件资料。"
+              />
             ) : (
               visibleFiles.map((file) => (
                 <button
@@ -86,7 +91,12 @@ export function FilesPage({ actor, files, versions, onSelectFile }: FilesPagePro
                 </div>
                 <p className="muted-paragraph">{selectedFile.description || "暂无描述。"}</p>
                 {selectedFile.driveUrl ? (
-                  <a className="link-button" href={selectedFile.driveUrl} target="_blank" rel="noreferrer">
+                  <a
+                    className="link-button"
+                    href={selectedFile.driveUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     <span aria-hidden="true">↗</span>
                     打开外部资料
                   </a>
@@ -102,7 +112,12 @@ export function FilesPage({ actor, files, versions, onSelectFile }: FilesPagePro
                           <small>{version.changeNote || "无更新说明"}</small>
                         </div>
                         {version.driveUrl ? (
-                          <a href={version.driveUrl} target="_blank" rel="noreferrer" className="icon-only-link">
+                          <a
+                            href={version.driveUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="icon-only-link"
+                          >
                             <span aria-hidden="true">↓</span>
                           </a>
                         ) : null}

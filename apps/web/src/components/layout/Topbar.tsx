@@ -33,7 +33,10 @@ export function Topbar({
         <label className="project-switcher">
           <span>当前项目</span>
           <div className="select-wrap">
-            <select value={selectedProjectId} onChange={(event) => onSelectProject(event.target.value)}>
+            <select
+              value={selectedProjectId}
+              onChange={(event) => onSelectProject(event.target.value)}
+            >
               <option value="">全部项目</option>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -46,7 +49,9 @@ export function Topbar({
         </label>
         <div className="project-state">
           <span className={`status-dot ${activeProject?.status ?? "active"}`} />
-          {activeProject ? `${activeProject.status === "pending" ? "待审批" : "进行中"} · ${activeProject.ownerName}` : "跨项目视图"}
+          {activeProject
+            ? `${activeProject.status === "pending" ? "待审批" : "进行中"} · ${activeProject.ownerName}`
+            : "跨项目视图"}
         </div>
       </div>
 
@@ -63,7 +68,11 @@ export function Topbar({
           <div>
             <strong>{actor.displayName}</strong>
             <span>
-              {actor.role === "lab_admin" ? "实验室管理员" : actor.role === "professor" ? "教授 / 项目负责人" : "学生研究员"}
+              {actor.role === "lab_admin"
+                ? "实验室管理员"
+                : actor.role === "professor"
+                  ? "教授 / 项目负责人"
+                  : "学生研究员"}
             </span>
           </div>
         </div>

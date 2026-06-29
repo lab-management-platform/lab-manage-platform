@@ -56,7 +56,15 @@ export function MeetingsPage({
                       <strong>{meeting.title}</strong>
                       <small>{meeting.createdByName}</small>
                     </div>
-                    <StatusBadge tone={meeting.status === "completed" ? "muted" : meeting.status === "cancelled" ? "danger" : "active"}>
+                    <StatusBadge
+                      tone={
+                        meeting.status === "completed"
+                          ? "muted"
+                          : meeting.status === "cancelled"
+                            ? "danger"
+                            : "active"
+                      }
+                    >
                       {meetingStatusText(meeting.status)}
                     </StatusBadge>
                   </div>
@@ -84,7 +92,11 @@ export function MeetingsPage({
                     <p>{item.content}</p>
                   </div>
                   {!item.readAt ? (
-                    <button type="button" className="tertiary-button" onClick={() => onMarkNotificationRead(item.id)}>
+                    <button
+                      type="button"
+                      className="tertiary-button"
+                      onClick={() => onMarkNotificationRead(item.id)}
+                    >
                       标记已读
                     </button>
                   ) : null}
@@ -95,7 +107,7 @@ export function MeetingsPage({
         </SectionCard>
       </div>
 
-      {(actor.permissions.includes("meeting:write") || actor.role === "lab_admin") ? (
+      {actor.permissions.includes("meeting:write") || actor.role === "lab_admin" ? (
         <div className="split-layout">
           <SectionCard title="创建会议" eyebrow="Schedule">
             <form

@@ -146,8 +146,12 @@ export function useLabData(token: string, actor: Actor | null) {
 
     const headers = toAuthorization(token);
     const [tasksData, membersData, progressData] = await Promise.all([
-      fetch(`${apiBase}/projects/${projectId}/tasks`, { headers }).then(parseResponse<ProjectTask[]>),
-      fetch(`${apiBase}/projects/${projectId}/members`, { headers }).then(parseResponse<ProjectMember[]>),
+      fetch(`${apiBase}/projects/${projectId}/tasks`, { headers }).then(
+        parseResponse<ProjectTask[]>
+      ),
+      fetch(`${apiBase}/projects/${projectId}/members`, { headers }).then(
+        parseResponse<ProjectMember[]>
+      ),
       fetch(`${apiBase}/projects/${projectId}/progress`, { headers }).then(
         parseResponse<ProgressReport[]>
       )

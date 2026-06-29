@@ -21,11 +21,13 @@ export function toDatetimeLocal(date: Date) {
 }
 
 export function statusText(status: ApplicationStatus) {
-  return ({
-    pending: "待审批",
-    approved: "已批准",
-    rejected: "已拒绝"
-  } satisfies Record<ApplicationStatus, string>)[status];
+  return (
+    {
+      pending: "待审批",
+      approved: "已批准",
+      rejected: "已拒绝"
+    } satisfies Record<ApplicationStatus, string>
+  )[status];
 }
 
 export function roleText(role: Role): string {
@@ -108,23 +110,38 @@ export const permissionLabels: Record<Permission, string> = {
 
 export const rolePermissions: Record<Role, Permission[]> = {
   lab_admin: [
-    "user:read", "user:write",
-    "inventory:read", "inventory:apply", "inventory:approve", "inventory:stock",
-    "file:read", "file:write",
-    "project:read", "project:write", "project:progress",
-    "meeting:read", "meeting:write",
-    "ai:use", "ai:manage"
+    "user:read",
+    "user:write",
+    "inventory:read",
+    "inventory:apply",
+    "inventory:approve",
+    "inventory:stock",
+    "file:read",
+    "file:write",
+    "project:read",
+    "project:write",
+    "project:progress",
+    "meeting:read",
+    "meeting:write",
+    "ai:use",
+    "ai:manage"
   ],
   professor: [
     "user:read",
-    "inventory:read", "inventory:apply", "inventory:approve",
-    "file:read", "file:write",
-    "project:read", "project:write",
-    "meeting:read", "meeting:write",
+    "inventory:read",
+    "inventory:apply",
+    "inventory:approve",
+    "file:read",
+    "file:write",
+    "project:read",
+    "project:write",
+    "meeting:read",
+    "meeting:write",
     "ai:use"
   ],
   student: [
-    "inventory:read", "inventory:apply",
+    "inventory:read",
+    "inventory:apply",
     "file:read",
     "project:read",
     "meeting:read",

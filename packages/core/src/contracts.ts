@@ -4,18 +4,18 @@ export type Permission =
   | "user:read"
   | "user:write"
   | "inventory:read"
-  | "inventory:apply"      // 申请领用
-  | "inventory:approve"     // 审批申请
-  | "inventory:stock"       // 入库登记
+  | "inventory:apply" // 申请领用
+  | "inventory:approve" // 审批申请
+  | "inventory:stock" // 入库登记
   | "file:read"
   | "file:write"
   | "project:read"
   | "project:write"
-  | "project:progress"      // 上传进度报告
+  | "project:progress" // 上传进度报告
   | "meeting:read"
   | "meeting:write"
   | "ai:use"
-  | "ai:manage";            // 管理知识库
+  | "ai:manage"; // 管理知识库
 
 export interface Actor {
   id: string;

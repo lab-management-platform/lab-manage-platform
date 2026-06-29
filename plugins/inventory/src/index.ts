@@ -833,7 +833,8 @@ export const inventoryPlugin: PluginManifest = {
           handler: async ({ query }) => {
             const all = await repository.listApplications();
             const projectId = (query as any)?.projectId as string | undefined;
-            if (projectId) return { body: all.filter((a: any) => a.project_id === projectId || !a.project_id) };
+            if (projectId)
+              return { body: all.filter((a: any) => a.project_id === projectId || !a.project_id) };
             return { body: all };
           }
         },

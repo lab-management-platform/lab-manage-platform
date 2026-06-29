@@ -72,7 +72,9 @@ export function AccountsPage({
             <span>账号：{profile?.username ?? actor.username}</span>
             <span>手机号：{profile?.phone ?? "未绑定"}</span>
             <span>认证方式：{profile?.identityProvider ?? "local"}</span>
-            <span>创建时间：{profile ? new Date(profile.createdAt).toLocaleDateString("zh-CN") : "-"}</span>
+            <span>
+              创建时间：{profile ? new Date(profile.createdAt).toLocaleDateString("zh-CN") : "-"}
+            </span>
           </div>
         </SectionCard>
 
@@ -105,7 +107,10 @@ export function AccountsPage({
                 type="password"
                 value={passwordDraft.currentPassword}
                 onChange={(event) =>
-                  setPasswordDraft((current) => ({ ...current, currentPassword: event.target.value }))
+                  setPasswordDraft((current) => ({
+                    ...current,
+                    currentPassword: event.target.value
+                  }))
                 }
               />
             </label>
@@ -199,7 +204,11 @@ export function AccountsPage({
 
           <SectionCard title="成员列表" eyebrow="Role Matrix">
             <div className="toolbar-row">
-              <input placeholder="搜索用户名、姓名或学号" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <input
+                placeholder="搜索用户名、姓名或学号"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
               <span className="panel-tag">角色分级已启用</span>
             </div>
             <div className="data-list">
@@ -215,10 +224,17 @@ export function AccountsPage({
                       </small>
                     </div>
                     <div className="row-inline wrap">
-                      <StatusBadge tone={user.active ? "active" : "muted"}>{roleText(user.role)}</StatusBadge>
+                      <StatusBadge tone={user.active ? "active" : "muted"}>
+                        {roleText(user.role)}
+                      </StatusBadge>
                       {user.id !== actor.id ? (
                         <>
-                          <select value={user.role} onChange={(event) => onUpdateUserRole(user.id, event.target.value as Role)}>
+                          <select
+                            value={user.role}
+                            onChange={(event) =>
+                              onUpdateUserRole(user.id, event.target.value as Role)
+                            }
+                          >
                             <option value="student">学生</option>
                             <option value="professor">教授</option>
                             <option value="lab_admin">实验室管理员</option>
@@ -230,7 +246,11 @@ export function AccountsPage({
                           >
                             重置密码
                           </button>
-                          <button type="button" className="tertiary-button ghost-tone" onClick={() => onDeleteUser(user.id)}>
+                          <button
+                            type="button"
+                            className="tertiary-button ghost-tone"
+                            onClick={() => onDeleteUser(user.id)}
+                          >
                             停用
                           </button>
                         </>

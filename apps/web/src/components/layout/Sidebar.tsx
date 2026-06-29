@@ -47,7 +47,9 @@ export function Sidebar({
               className={item.id === activeView ? "nav-item active" : "nav-item"}
               onClick={() => onNavigate(item.id)}
             >
-              <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+              <span className="nav-icon" aria-hidden="true">
+                {item.icon}
+              </span>
               <span>{item.label}</span>
             </button>
           );

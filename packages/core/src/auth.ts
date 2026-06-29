@@ -266,10 +266,7 @@ export class DemoAuthAdapter implements AuthPort {
     this.users.splice(userIndex, 1);
   }
 
-  async updateUserRole(
-    targetUserId: string,
-    role: Role
-  ): Promise<ManagedUser> {
+  async updateUserRole(targetUserId: string, role: Role): Promise<ManagedUser> {
     if (!["admin", "member"].includes(role)) {
       throw new Error("role must be admin or member");
     }
@@ -623,10 +620,7 @@ export class PostgresAuthAdapter implements AuthPort {
     await this.pool.query(`DELETE FROM core.session WHERE user_id = $1`, [targetUserId]);
   }
 
-  async updateUserRole(
-    targetUserId: string,
-    role: Role
-  ): Promise<ManagedUser> {
+  async updateUserRole(targetUserId: string, role: Role): Promise<ManagedUser> {
     if (!["admin", "member"].includes(role)) {
       throw new Error("role must be admin or member");
     }
