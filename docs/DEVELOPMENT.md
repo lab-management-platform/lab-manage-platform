@@ -19,17 +19,123 @@ docker compose version
 
 ## 2. 本地启动
 
+首次启动或需要重建开发环境时：
+
 ```powershell
 Copy-Item .env.example .env
 docker compose up --build -d
 docker compose ps
 ```
 
-常用辅助命令：
+### 2.1 命令用途与区别
+
+#### `docker compose up --build -d`
+
+- 作用：构建镜像并后台启动服务
+- 适用场景：
+  - 第一次启动仓库
+  - 修改了 `Dockerfile`
+  - 修改了 `docker-compose.yml`
+  - 修改了 `package.json`、锁文件、依赖安装逻辑
+  - 怀疑镜像层和当前代码状态已经不一致
+- 特点：
+  - 最完整、最重
+  - 会花更多时间
+  - 不适合作为“每次改前端文件后的刷新手段”
+
+#### `docker compose ps`
+
+- 作用：查看容器状态
+- 适用场景：
+  - 确认 `api`、`web`、`postgres` 是否都启动
+  - 确认端口是否已暴露
+  - 快速判断是不是服务根本没起来
+- 特点：
+  - 完全只读
+  - 不会更新任何代码，也不会重启任何容器
+
+#### `docker compose restart web`
+
+- 作用：只重启前端容器
+- 适用场景：
+  - 修改了前端监听配置
+  - 修改了 `docker-compose.yml` 中 `web` 的环境变量
+  - 修改了 `apps/web/vite.config.ts`
+  - 前端热更新异常，但不想整套重建
+- 特点：
+  - 比 `up --build -d` 轻很多
+  - 适合让新的 Vite 配置或监听方式立刻生效
+
+#### `docker compose logs -f web`
+
+- 作用：实时查看前端开发服务日志
+- 适用场景：
+  - 确认 Vite 是否已启动
+  - 排查热更新是否生效
+  - 查看前端编译错误
+- 正常情况下你会看到类似：
+  - `VITE ready`
+  - `Local: http://localhost:5173/`
+
+#### `docker compose logs -f api`
+
+- 作用：实时查看后端服务日志
+- 适用场景：
+  - 排查接口失败
+  - 排查插件注册异常
+  - 排查数据库连接问题
+
+### 2.2 日常前端开发应该怎么做
+
+- 修改 `apps/web/src/*`、`styles.css`、页面组件、hooks、layout`
+  - 正常情况下应该由 Vite 自动热更新
+  - 不需要 `docker build`
+- 如果前端代码改了但浏览器没变化：
+  1. 先运行 `docker compose ps`
+  2. 再运行 `docker compose logs -f web`
+  3. 若 `web` 正常运行但监听异常，执行 `docker compose restart web`
+  4. 只有在镜像层或依赖变化时，才执行 `docker compose up --build -d`
+
+### 2.3 当前仓库为什么通常不需要手动 build 前端
+
+- `web` 服务运行的是 `pnpm --filter @lab/web dev --host 0.0.0.0`
+- 这代表容器里启动的是 `Vite dev server`
+- `Vite dev server` 的默认工作方式是：
+  - 监听源码变化
+  - 增量编译
+  - 自动热更新到浏览器
+
+也就是说：
+
+- 改前端源码 = 应该热更新
+- 改依赖/镜像/容器配置 = 可能需要 `restart web` 或 `up --build -d`
+
+### 2.4 本机直跑前端的场景
+
+如果你不想依赖 Docker 的文件监听，也可以直接在本机跑前端：
+
+```powershell
+corepack pnpm install
+corepack pnpm --filter @lab/web dev
+```
+
+适用场景：
+
+- Docker Desktop 在 Windows 下文件监听不稳定
+- 只改前端页面，不涉及后端运行方式
+- 想获得更快的热更新反馈
+
+注意：
+
+- 本机直跑前端时，浏览器仍访问 `http://localhost:5173`
+- 后端接口仍可继续走 Docker 中的 `api` 服务
+
+### 2.5 常用辅助命令
 
 ```powershell
 docker compose logs -f api
 docker compose logs -f web
+docker compose restart web
 docker compose exec api pnpm --filter @lab/api db:migrate
 ```
 

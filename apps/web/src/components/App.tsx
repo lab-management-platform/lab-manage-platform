@@ -76,6 +76,10 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [actor, lab.message, lab.setMessage]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [activeView]);
+
   async function login(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthLoading(true);
@@ -156,6 +160,12 @@ export function App() {
 
   return (
     <main className="app-frame">
+      {lab.message ? (
+        <div className="toast-layer" aria-live="polite">
+          <div className="floating-toast">{lab.message}</div>
+        </div>
+      ) : null}
+
       <Sidebar
         actor={actor}
         activeView={activeView}
@@ -181,8 +191,6 @@ export function App() {
           }}
           onLogout={logout}
         />
-
-        {lab.message ? <div className="floating-toast">{lab.message}</div> : null}
 
         <div className="workspace-body">
           {activeView === "dashboard" ? (

@@ -1,8 +1,8 @@
 :root {
   color: #1d2e29;
   background:
-    radial-gradient(circle at top left, rgba(180, 138, 82, 0.1), transparent 28%),
-    linear-gradient(180deg, #082c24 0, #103c33 188px, #f3efe5 188px, #f3efe5 100%);
+    radial-gradient(circle at top left, rgba(180, 138, 82, 0.08), transparent 28%),
+    linear-gradient(180deg, #f7f2e8 0, #f3efe5 100%);
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   font-synthesis: none;
   --bg-ink: #0f342d;
@@ -131,6 +131,44 @@ h3,
   background: transparent;
 }
 
+.password-wrap {
+  position: relative;
+  display: flex;
+}
+
+.password-wrap input {
+  flex: 1;
+  padding-right: 40px;
+}
+
+/* 禁用浏览器原生的密码可见性切换图标 */
+.password-wrap input::-ms-reveal {
+  display: none;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sage);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.password-toggle:hover {
+  color: var(--brand-gold);
+}
+
 .app-frame {
   min-height: 100vh;
   display: grid;
@@ -235,6 +273,7 @@ h3,
   border: 1px solid rgba(180, 138, 82, 0.18);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
+  overflow-wrap: anywhere;
 }
 
 .workspace-shell {
@@ -247,17 +286,23 @@ h3,
   top: 18px;
   z-index: 30;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 20px;
   align-items: center;
   padding: 18px 20px;
-  border: 1px solid rgba(180, 138, 82, 0.24);
+  border: 1px solid rgba(180, 138, 82, 0.2);
   border-radius: 24px;
-  background: rgba(255, 250, 243, 0.97);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(248, 242, 232, 0.98));
   box-shadow:
-    0 22px 54px rgba(11, 34, 29, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(18px);
+    0 18px 40px rgba(20, 34, 29, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(14px);
+}
+
+.topbar-shell:hover {
+  background: linear-gradient(180deg, rgba(255, 250, 242, 1), rgba(244, 235, 220, 1));
+  border-color: rgba(180, 138, 82, 0.32);
 }
 
 .topbar-context,
@@ -280,11 +325,15 @@ h3,
   min-width: 0;
   flex: 1;
   align-items: stretch;
+  flex-wrap: wrap;
 }
 
 .topbar-actions {
   margin-left: auto;
   flex-shrink: 0;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .project-switcher {
@@ -296,6 +345,7 @@ h3,
   display: grid;
   gap: 8px;
   min-width: 250px;
+  flex: 0 1 260px;
 }
 
 .topbar-label {
@@ -319,6 +369,7 @@ h3,
   appearance: none;
   padding-right: 36px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .select-wrap svg {
@@ -371,12 +422,14 @@ h3,
   font-size: 22px;
   line-height: 1.2;
   color: #173831;
+  word-break: break-word;
 }
 
 .project-banner-main span {
   color: #6d776f;
   font-size: 13px;
   line-height: 1.5;
+  word-break: break-word;
 }
 
 .project-banner-meta {
@@ -432,6 +485,14 @@ h3,
   text-decoration: none;
 }
 
+.icon-chip:hover,
+.secondary-button:hover,
+.tertiary-button:hover,
+.link-button:hover {
+  border-color: rgba(180, 138, 82, 0.28);
+  background: rgba(255, 251, 244, 0.94);
+}
+
 .primary-button,
 .primary-icon-button {
   border: 0;
@@ -458,6 +519,25 @@ h3,
   padding: 8px 10px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.48);
+  min-width: 0;
+  max-width: 320px;
+}
+
+.user-chip-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.user-chip-copy strong,
+.user-chip-copy span,
+.topbar-meta small {
+  overflow-wrap: anywhere;
+}
+
+.user-chip-copy span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .avatar-orb {
@@ -478,10 +558,11 @@ h3,
 }
 
 .floating-toast {
-  position: sticky;
-  top: 116px;
-  z-index: 24;
-  margin: 14px auto 0;
+  position: fixed;
+  top: 104px;
+  left: 50%;
+  z-index: 48;
+  transform: translateX(-50%);
   width: fit-content;
   max-width: min(100%, 720px);
   padding: 12px 16px;
@@ -491,6 +572,13 @@ h3,
   color: #5c4833;
   text-align: center;
   box-shadow: 0 12px 24px rgba(18, 44, 38, 0.08);
+}
+
+.toast-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  pointer-events: none;
 }
 
 .workspace-body {
@@ -871,6 +959,7 @@ h3,
 }
 
 @media (max-width: 1240px) {
+
   .split-layout,
   .file-browser-layout,
   .ai-layout {
@@ -892,6 +981,7 @@ h3,
   }
 
   .topbar-context,
+  .topbar-actions,
   .project-banner {
     width: 100%;
   }
@@ -906,7 +996,7 @@ h3,
   }
 
   .floating-toast {
-    top: 154px;
+    top: 132px;
   }
 }
 
@@ -942,8 +1032,14 @@ h3,
   }
 
   .topbar-project-head,
-  .project-banner-meta {
+  .project-banner-meta,
+  .user-chip {
     width: 100%;
+    max-width: none;
+  }
+
+  .topbar-meta small {
+    white-space: normal;
   }
 
   .hero-stats,

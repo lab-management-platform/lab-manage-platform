@@ -80,11 +80,9 @@ export function Topbar({
         </div>
         <div className="user-chip">
           <div className="avatar-orb">{actor.displayName.slice(0, 1)}</div>
-          <div>
-            <strong>{actor.displayName}</strong>
-            <span>
-              {roleText(actor.role)} / {actor.role === "professor" ? "项目负责人" : actor.username}
-            </span>
+          <div className="user-chip-copy">
+            <strong>{actor.username}</strong>
+            <span>{actor.role === "professor" ? "教授 / 项目负责人" : roleText(actor.role)}</span>
           </div>
         </div>
         <button type="button" className="secondary-button" onClick={onLogout}>

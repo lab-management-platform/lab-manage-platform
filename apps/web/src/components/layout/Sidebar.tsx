@@ -58,10 +58,8 @@ export function Sidebar({
 
       <div className="sidebar-footer">
         <span className="sidebar-foot-label">当前身份</span>
-        <strong>{actor.displayName}</strong>
-        <small>
-          {roleText(actor.role)} / {actor.username}
-        </small>
+        <strong>{actor.username}</strong>
+        <small>{actor.role === "professor" ? "教授 / 项目负责人" : roleText(actor.role)}</small>
       </div>
     </aside>
   );
