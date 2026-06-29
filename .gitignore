@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# IDE & editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Docker volumes & certs
+postgres-data/
+infra/nginx/certs/
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+coverage/
+
+# MCP config (local machine paths)
+.mcp.json
+CLAUDE.md
+
+# Temp files
+*.tmp
+*.temp
+images.tar
+

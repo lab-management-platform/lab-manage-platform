@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": ["node", "vitest"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../plugins/collaboration" },
+    { "path": "../../plugins/files" },
+    { "path": "../../plugins/hello-world" },
+    { "path": "../../plugins/ai" },
+    { "path": "../../plugins/inventory" },
+    { "path": "../../plugins/projects" }
+  ]
+}

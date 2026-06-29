@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/core" },
+    { "path": "plugins/collaboration" },
+    { "path": "plugins/files" },
+    { "path": "plugins/hello-world" },
+    { "path": "plugins/ai" },
+    { "path": "plugins/inventory" },
+    { "path": "plugins/projects" },
+    { "path": "apps/api" },
+    { "path": "apps/web" }
+  ]
+}

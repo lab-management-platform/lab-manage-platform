@@ -1,0 +1,63 @@
+services:
+  api:
+    build:
+      context: .
+      target: dev
+    command: pnpm --filter @lab/api dev
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+      - /workspace/apps/api/node_modules
+      - /workspace/packages/core/node_modules
+      - /workspace/plugins/collaboration/node_modules
+      - /workspace/plugins/files/node_modules
+      - /workspace/plugins/inventory/node_modules
+      - /workspace/plugins/ai/node_modules
+      - /workspace/plugins/projects/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      target: dev
+    command: pnpm --filter @lab/web dev --host 0.0.0.0
+    env_file: .env
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+      - /workspace/apps/web/node_modules
+      - /workspace/packages/core/node_modules
+      - /workspace/plugins/collaboration/node_modules
+      - /workspace/plugins/files/node_modules
+      - /workspace/plugins/inventory/node_modules
+      - /workspace/plugins/ai/node_modules
+      - /workspace/plugins/projects/node_modules
+    depends_on:
+      - api
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab_password
+      POSTGRES_DB: lab_management
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d lab_management"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-data:

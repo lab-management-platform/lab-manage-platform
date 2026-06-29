@@ -1,0 +1,30 @@
+{
+  "name": "@lab/api",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "db:migrate": "tsx src/migrate.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@lab/core": "workspace:*",
+    "@lab/plugin-collaboration": "workspace:*",
+    "@lab/plugin-files": "workspace:*",
+    "@lab/plugin-hello-world": "workspace:*",
+    "@lab/plugin-ai": "workspace:*",
+    "@lab/plugin-inventory": "workspace:*",
+    "@lab/plugin-projects": "workspace:*",
+    "fastify": "^5.1.0",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.19.2"
+  }
+}

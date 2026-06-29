@@ -1,0 +1,39 @@
+{
+  "name": "lab-management-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "实验室管理平台微内核插件",
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "corepack pnpm --parallel --filter @lab/api --filter @lab/web dev",
+    "build": "tsc -b packages/core packages/contracts plugins/hello-world plugins/inventory plugins/files plugins/collaboration plugins/ai plugins/projects apps/api && corepack pnpm --filter @lab/web build:web",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "test": "vitest run",
+    "typecheck": "tsc -b packages/core packages/contracts plugins/hello-world plugins/inventory plugins/files plugins/collaboration plugins/ai plugins/projects apps/api --pretty false",
+    "db:migrate": "corepack pnpm --filter @lab/api db:migrate",
+    "ci": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.18.2",
+    "@typescript-eslint/parser": "^8.18.2",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.14.0",
+    "husky": "^9.1.7",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
