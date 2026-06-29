@@ -66,6 +66,16 @@ export function App() {
     }
   }, [actor, selectedProjectId, lab.projects]);
 
+  useEffect(() => {
+    if (!actor || !lab.message) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      lab.setMessage("");
+    }, 3600);
+    return () => window.clearTimeout(timer);
+  }, [actor, lab.message, lab.setMessage]);
+
   async function login(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthLoading(true);

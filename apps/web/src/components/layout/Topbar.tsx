@@ -1,3 +1,4 @@
+import { roleText } from "../../utils/helpers";
 import type { Actor, Project } from "../../types";
 
 interface TopbarProps {
@@ -30,13 +31,10 @@ export function Topbar({
   return (
     <header className="topbar-shell">
       <div className="topbar-context">
-        <label className="project-switcher">
-          <span>当前项目</span>
-          <div className="select-wrap">
-            <select
-              value={selectedProjectId}
-              onChange={(event) => onSelectProject(event.target.value)}
-            >
+        <div className="topbar-project-head">
+          <span className="topbar-label">当前项目</span>
+          <div className="select-wrap project-select-wrap">
+            <select value={selectedProjectId} onChange={(event) => onSelectProject(event.target.value)}>
               <option value="">全部项目</option>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -46,12 +44,24 @@ export function Topbar({
             </select>
             <span className="select-caret">▾</span>
           </div>
-        </label>
-        <div className="project-state">
-          <span className={`status-dot ${activeProject?.status ?? "active"}`} />
-          {activeProject
-            ? `${activeProject.status === "pending" ? "待审批" : "进行中"} · ${activeProject.ownerName}`
-            : "跨项目视图"}
+        </div>
+
+        <div className="project-banner">
+          <div className="project-banner-main">
+            <strong>{activeProject?.name ?? "跨项目视图"}</strong>
+            <span>
+              {activeProject?.description?.trim() || "当前可在此快速切换课题、查看状态与负责人。"}
+            </span>
+          </div>
+          <div className="project-banner-meta">
+            <div className="project-state">
+              <span className={`status-dot ${activeProject?.status ?? "active"}`} />
+              {activeProject
+                ? `${activeProject.status === "pending" ? "待审批" : activeProject.status === "completed" ? "已完成" : "进行中"}`
+                : "全局视图"}
+            </div>
+            {activeProject ? <div className="project-meta-chip">负责人 · {activeProject.ownerName}</div> : null}
+          </div>
         </div>
       </div>
 
@@ -67,13 +77,7 @@ export function Topbar({
           <div className="avatar-orb">{actor.displayName.slice(0, 1)}</div>
           <div>
             <strong>{actor.displayName}</strong>
-            <span>
-              {actor.role === "lab_admin"
-                ? "实验室管理员"
-                : actor.role === "professor"
-                  ? "教授 / 项目负责人"
-                  : "学生研究员"}
-            </span>
+            <span>{roleText(actor.role)} / {actor.role === "professor" ? "项目负责人" : actor.username}</span>
           </div>
         </div>
         <button type="button" className="secondary-button" onClick={onLogout}>
