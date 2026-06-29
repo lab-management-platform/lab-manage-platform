@@ -3,8 +3,7 @@
   "compilerOptions": {
     "composite": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "downlevelIteration": true
+    "rootDir": "src"
   },
   "include": ["src/**/*.ts"],
   "references": [{ "path": "../../packages/contracts" }, { "path": "../../packages/core" }]
