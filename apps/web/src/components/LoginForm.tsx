@@ -1,5 +1,4 @@
 import type { SyntheticEvent } from "react";
-import { FlaskConical, ArrowLeft } from "lucide-react";
 
 interface LoginFormProps {
   username: string;
@@ -30,7 +29,7 @@ export function LoginForm({
       <main className="login-shell">
         <form className="login-panel" onSubmit={onResetPassword} autoComplete="off">
           <div className="brand login-brand">
-            <FlaskConical size={30} />
+            <span className="brand-glyph">◈</span>
             <div>
               <strong>实验室管理平台</strong>
               <span>Lab Ops Console</span>
@@ -71,7 +70,7 @@ export function LoginForm({
           ) : null}
 
           <button type="button" className="ghost" onClick={() => { setResetMode(false); }}>
-            <ArrowLeft size={16} />
+            <span aria-hidden="true">←</span>
             返回登录
           </button>
         </form>
@@ -83,7 +82,7 @@ export function LoginForm({
     <main className="login-shell">
       <form className="login-panel" onSubmit={onSubmit} autoComplete="off">
         <div className="brand login-brand">
-          <FlaskConical size={30} />
+          <span className="brand-glyph">◈</span>
           <div>
             <strong>实验室管理平台</strong>
             <span>Lab Ops Console</span>

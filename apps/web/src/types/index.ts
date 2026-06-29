@@ -1,4 +1,5 @@
 export type Role = "student" | "professor" | "lab_admin";
+
 export type Permission =
   | "user:read"
   | "user:write"
@@ -15,15 +16,18 @@ export type Permission =
   | "meeting:write"
   | "ai:use"
   | "ai:manage";
-  | "ai:use";
+
 export type ApplicationStatus = "pending" | "approved" | "rejected";
+export type ProjectStatus = "pending" | "active" | "archived" | "completed";
+export type TaskStatus = "todo" | "in_progress" | "review" | "done";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
 export interface Actor {
   id: string;
   username: string;
   displayName: string;
   role: Role;
-  permissions: string[];
+  permissions: Permission[];
 }
 
 export interface Material {
@@ -197,4 +201,51 @@ export interface ChatHistoryRecord {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  ownerId: string;
+  ownerName: string;
+  startsAt?: string;
+  endsAt?: string;
+  status: ProjectStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectTask {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  dueDate?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectMember {
+  projectId: string;
+  userId: string;
+  userName?: string;
+  memberRole: "leader" | "member" | "advisor" | "manager";
+  joinedAt: string;
+}
+
+export interface ProgressReport {
+  id: string;
+  projectId: string;
+  authorId: string;
+  authorName: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
 }

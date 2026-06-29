@@ -21,11 +21,11 @@ export function toDatetimeLocal(date: Date) {
 }
 
 export function statusText(status: ApplicationStatus) {
-  return {
+  return ({
     pending: "待审批",
     approved: "已批准",
     rejected: "已拒绝"
-  }[status];
+  } satisfies Record<ApplicationStatus, string>)[status];
 }
 
 export function roleText(role: Role): string {

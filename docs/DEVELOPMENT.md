@@ -2,175 +2,134 @@
 
 ## 1. 环境要求
 
-必需：
-
 - Node.js 20+
 - pnpm 9+
 - Docker Desktop
-- PostgreSQL 由 Docker Compose 启动，不需要本机单独安装
+
+推荐优先使用 Docker 开发环境，避免本机单独安装 PostgreSQL。
 
 检查命令：
 
 ```powershell
 node -v
-corepack pnpm -v
+corepack pnpm --version
 docker version
 docker compose version
 ```
 
 ## 2. 本地启动
 
-推荐使用 Docker：
-
 ```powershell
+Copy-Item .env.example .env
 docker compose up --build -d
-```
-
-查看状态：
-
-```powershell
 docker compose ps
 ```
 
-查看 API 日志：
+常用辅助命令：
 
 ```powershell
 docker compose logs -f api
+docker compose logs -f web
+docker compose exec api pnpm --filter @lab/api db:migrate
 ```
 
-如果依赖新增后容器找不到包：
+## 3. 当前代码结构
 
-```powershell
-docker compose up --build -d -V api web
+### 前端 `apps/web`
+
+当前前端已从旧的一页式长工作台重构为模块化结构：
+
+```text
+apps/web/src/
+├── components/
+│   ├── layout/           应用壳层：Sidebar / Topbar
+│   ├── pages/            模块页：Dashboard / Projects / Inventory ...
+│   ├── shared/           共享 UI 组件
+│   ├── App.tsx           页面装配与登录态入口
+│   └── LoginForm.tsx     登录与找回密码
+├── config/               导航与角色可见性配置
+├── hooks/                数据加载与业务动作
+├── types/                前端类型
+├── utils/                文本、状态、格式化工具
+└── styles.css            全局样式
 ```
 
-## 3. 本地质量检查
+### 后端 `apps/api`
 
-每次提交前运行：
-
-```powershell
-corepack pnpm run ci
+```text
+apps/api/src/
+├── main.ts        HTTP 路由与服务启动
+├── kernel.ts      微内核装配与插件注册
+├── adapters.ts    审计、日志等适配器
+└── migrate.ts     数据库迁移入口
 ```
 
-它会执行：
+### 核心与插件
 
-- Prettier 格式检查
-- ESLint
-- TypeScript 类型检查
-- Vitest 测试
-- 前后端构建
+- `packages/core`: 认证、权限、审计、事件、插件契约
+- `packages/contracts`: OpenAPI 与共享契约
+- `plugins/inventory`: 耗材、申请、审批、库存流水
+- `plugins/files`: 文件资料、版本、权限
+- `plugins/collaboration`: 会议、通知、公告
+- `plugins/ai`: AI 对话、知识库、FAQ
+- `plugins/projects`: 项目、任务、成员、进度
 
-## 4. 推荐分工
+## 4. 开发规则
 
-| 小组   | 负责目录                    | 主要职责                             |
-| ------ | --------------------------- | ------------------------------------ |
-| 核心组 | `packages/core`、`apps/api` | 登录、权限、审计、插件注册、统一认证 |
-| 前端组 | `apps/web`                  | 页面、交互、接口调用、状态刷新       |
-| 耗材组 | `plugins/inventory`         | 耗材、申请、审批、库存流水           |
-| 文件组 | `plugins/files`             | 文件资料、Synology Drive 适配        |
-| 运维组 | `infra`、Docker 文件        | Nginx、HTTPS、Postgres、迁移、部署   |
+- 插件不能直接导入其他插件源码
+- 插件不能直接读写其他插件的 schema
+- 新增 API 时同步更新 OpenAPI
+- 重要写操作要记录审计日志
+- UI 列表避免无限增长，优先使用筛选、分页、局部滚动或“查看更多”
+- 不提交 `.env`、证书、密码、NAS token
 
 ## 5. 新增业务插件流程
 
-假设新增项目管理插件 `plugins/projects`：
+1. 创建 `plugins/<name>/`
+2. 补 `package.json`、`tsconfig.json`、`src/index.ts`
+3. 在 `apps/api/package.json` 添加 workspace 依赖
+4. 在 `apps/api/src/kernel.ts` 注册插件
+5. 在根 `tsconfig.json` 和 API `tsconfig.json` 添加引用
+6. 更新 `packages/contracts/openapi/core-api.yaml`
+7. 如需数据表，添加 migration 或初始化逻辑
+8. 跑 `corepack pnpm run ci`
 
-1. 创建目录：
+插件模板参考：[plugin-template.md](./plugin-template.md)
 
-```text
-plugins/projects/
-  package.json
-  tsconfig.json
-  src/index.ts
+## 6. 质量检查
+
+提交前执行：
+
+```powershell
+corepack pnpm run ci
 ```
 
-2. 在 `package.json` 中声明包名：
+它会检查：
 
-```json
-{
-  "name": "@lab/plugin-projects",
-  "type": "module",
-  "private": true,
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "dependencies": {
-    "@lab/core": "workspace:*"
-  }
-}
-```
-
-3. 在 `src/index.ts` 中导出插件：
-
-```ts
-import type { PluginManifest } from "@lab/core";
-
-export const projectsPlugin: PluginManifest = {
-  name: "projects",
-  version: "0.1.0",
-  description: "项目管理插件",
-  capabilities: ["projects:list"],
-  routes: [
-    {
-      method: "GET",
-      path: "/projects",
-      permission: "project:read",
-      summary: "查询项目"
-    }
-  ],
-  eventsPublished: [],
-  eventsSubscribed: [],
-  async activate() {
-    return {
-      name: "projects",
-      routes: [
-        {
-          method: "GET",
-          path: "/projects",
-          permission: "project:read",
-          summary: "查询项目",
-          handler: async () => ({ body: [] })
-        }
-      ]
-    };
-  }
-};
-```
-
-4. 在 `apps/api/src/kernel.ts` 注册插件。
-5. 在 `apps/api/package.json` 添加 workspace 依赖。
-6. 在根 `tsconfig.json` 和 `apps/api/tsconfig.json` 添加工程引用。
-7. 在 `packages/contracts/openapi/core-api.yaml` 补 API 契约。
-8. 在 `apps/web/src/main.tsx` 增加页面入口。
-9. 跑 `corepack pnpm install --frozen-lockfile=false` 更新锁文件。
-10. 跑 `corepack pnpm run ci`。
-
-## 6. 开发规则
-
-- 插件不能直接导入另一个插件。
-- 插件不能直接读写另一个 schema 的表。
-- 新增 API 必须更新 OpenAPI。
-- 重要动作必须写审计日志。
-- 业务数据表放在自己的 schema，例如 `projects.*`。
-- UI 列表不能无限增长，使用搜索、筛选、分页、页内滚动或“展示更多”。
-- 不要把密码、NAS token、证书私钥提交到 Git。
+- Prettier
+- ESLint
+- TypeScript
+- Vitest
+- 构建
 
 ## 7. 常见问题
 
-`docker` 命令找不到：
+### Docker 命令找不到
 
-先确认 Docker Desktop 已启动，并重启当前终端。如果仍然找不到 `docker`，在 Docker Desktop 安装目录中找到 `resources\bin`，把它加入 Windows 系统环境变量 `Path`。
+- 确认 Docker Desktop 已启动
+- 重开终端
+- 检查 Docker 的 `resources\bin` 是否在 `Path` 中
 
-不要把个人电脑上的绝对安装路径写进项目文档或配置。这些路径只在本机有效，上传 GitHub 后会误导其他成员。
-
-容器里找不到新增依赖：
+### 容器里依赖没刷新
 
 ```powershell
 docker compose up --build -d -V api web
 ```
 
-测试出现 `spawn EPERM`：
+### Windows 下前端包解析异常
 
-通常是 Windows 权限或安全软件拦截子进程。用管理员 PowerShell 重新执行：
+仓库当前在部分 Windows 环境里会遇到 `pnpm` 链接结构解析不稳定。优先使用 Docker 开发，必要时先跑：
 
 ```powershell
-corepack pnpm run ci
+corepack pnpm --filter @lab/web typecheck
 ```
