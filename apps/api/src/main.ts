@@ -240,9 +240,14 @@ export async function createApiApp() {
       return reply.code(400).send({ error: "cannot change current user role" });
     }
 
-    const body = request.body as Partial<{ role: "student" | "professor" | "lab_admin" }>;
-    if (!body.role || !["student", "professor", "lab_admin"].includes(body.role)) {
-      return reply.code(400).send({ error: "role must be student, professor or lab_admin" });
+    const body = request.body as Partial<{
+      role: "student" | "professor" | "lab_admin" | "member" | "admin";
+    }>;
+    if (
+      !body.role ||
+      !["student", "professor", "lab_admin", "member", "admin"].includes(body.role)
+    ) {
+      return reply.code(400).send({ error: "invalid role" });
     }
 
     try {
