@@ -35,6 +35,43 @@ interface AiPageProps {
   onDeleteKnowledge: (id: string) => Promise<void>;
 }
 
+type MammothBrowser = {
+  extractRawText: (options: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }>;
+};
+
+async function loadWindowScript<T>(src: string, globalName: string): Promise<T> {
+  const globalScope = window as typeof window & Record<string, unknown>;
+  const existing = globalScope[globalName];
+  if (existing) {
+    return existing as T;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const current = document.querySelector(`script[data-global="${globalName}"]`);
+    if (current) {
+      current.addEventListener("load", () => resolve(), { once: true });
+      current.addEventListener("error", () => reject(new Error(`${globalName} 脚本加载失败`)), {
+        once: true
+      });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.global = globalName;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`${globalName} 脚本加载失败`));
+    document.head.appendChild(script);
+  });
+
+  const loaded = globalScope[globalName];
+  if (!loaded) {
+    throw new Error(`${globalName} 已加载，但全局对象不存在`);
+  }
+  return loaded as T;
+}
+
 async function readKnowledgeFile(file: File) {
   const fileName = file.name;
   const mimeType = file.type || "application/octet-stream";
@@ -70,7 +107,7 @@ async function readKnowledgeFile(file: File) {
     mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     extension === "docx"
   ) {
-    const mammoth = await import("mammoth/mammoth.browser");
+    const mammoth = await loadWindowScript<MammothBrowser>("/mammoth.browser.min.js", "mammoth");
     const buffer = await file.arrayBuffer();
     const result = await mammoth.extractRawText({ arrayBuffer: buffer });
     content = result.value.replace(/\n{3,}/g, "\n\n").trim();

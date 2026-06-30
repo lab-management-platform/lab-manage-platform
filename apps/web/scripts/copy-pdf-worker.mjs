@@ -17,6 +17,10 @@ const filesToCopy = [
   {
     src: join(__dirname, "../node_modules/pdfjs-dist/build/pdf.mjs"),
     dest: join(destDir, "pdf.mjs")
+  },
+  {
+    src: join(__dirname, "../node_modules/mammoth/mammoth.browser.min.js"),
+    dest: join(destDir, "mammoth.browser.min.js")
   }
 ];
 
@@ -27,6 +31,8 @@ for (const file of filesToCopy) {
     }
     copyFileSync(file.src, file.dest);
     console.log(`✓ ${file.dest.split(/[/\\\\]/).pop()} copied to public/`);
+  } else if (existsSync(file.dest)) {
+    console.log(`• keep existing ${file.dest.split(/[/\\\\]/).pop()} in public/`);
   } else {
     console.warn("⚠ file not found at", file.src);
   }
