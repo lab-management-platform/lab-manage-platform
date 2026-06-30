@@ -57,13 +57,9 @@ export function App() {
       });
       return;
     }
-    const firstProjectId = lab.projects[0]?.id;
-    if (firstProjectId) {
-      setSelectedProjectId(firstProjectId);
-      lab.loadProjectWorkspace(firstProjectId).catch(() => {
-        // keep shell responsive
-      });
-    }
+    lab.loadProjectWorkspace("").catch(() => {
+      // keep shell responsive
+    });
   }, [actor, selectedProjectId, lab.projects]);
 
   useEffect(() => {
@@ -183,11 +179,13 @@ export function App() {
           projects={lab.projects}
           selectedProjectId={selectedProjectId}
           unreadCount={lab.unreadNotifications.length}
+          onOpenView={(view) => {
+            setActiveView(view);
+            setMobileNavOpen(false);
+          }}
           onSelectProject={async (projectId) => {
             setSelectedProjectId(projectId);
-            if (projectId) {
-              await lab.loadProjectWorkspace(projectId);
-            }
+            await lab.loadProjectWorkspace(projectId);
           }}
           onLogout={logout}
         />
@@ -216,12 +214,22 @@ export function App() {
               }}
               tasks={lab.projectTasks}
               progressReports={lab.progressReports}
+              projectTree={lab.projectTree}
+              projectTreeSnapshots={lab.projectTreeSnapshots}
               members={lab.projectMembers}
+              users={lab.users}
               onCreateProject={lab.createProject}
               onApproveProject={lab.approveProject}
               onCreateTask={lab.createTask}
               onCompleteTask={lab.completeTask}
-              onCreateProgress={lab.createProgress}
+              onAddProjectMember={lab.addProjectMember}
+              onUpdateProjectMember={lab.updateProjectMember}
+              onRemoveProjectMember={lab.removeProjectMember}
+              onSaveProjectTree={lab.saveProjectTree}
+              onCreateProjectTreeSnapshot={lab.createProjectTreeSnapshot}
+              onCreateProjectReport={lab.createProjectReport}
+              onLoadProjectReportDetail={lab.loadProjectReportDetail}
+              projectReportDetail={lab.projectReportDetail}
             />
           ) : null}
 
@@ -243,15 +251,21 @@ export function App() {
           {activeView === "files" ? (
             <FilesPage
               actor={actor}
+              projects={lab.projects}
+              selectedProjectId={selectedProjectId}
               files={lab.files}
               versions={lab.fileVersions}
               onSelectFile={lab.loadFileVersions}
+              onCreateProjectFile={lab.createProjectFile}
+              onAddFileVersion={lab.addFileVersion}
             />
           ) : null}
 
           {activeView === "meetings" ? (
             <MeetingsPage
               actor={actor}
+              projects={lab.projects}
+              selectedProjectId={selectedProjectId}
               meetings={lab.meetings}
               notifications={lab.notifications}
               onCreateMeeting={lab.createMeeting}
@@ -272,6 +286,7 @@ export function App() {
               onSendMessage={lab.sendAiMessage}
               onClearHistory={lab.clearAiHistory}
               onCreateKnowledge={lab.createKnowledge}
+              onUploadKnowledgeFile={lab.uploadKnowledgeFile}
               onDeleteKnowledge={lab.deleteKnowledge}
             />
           ) : null}

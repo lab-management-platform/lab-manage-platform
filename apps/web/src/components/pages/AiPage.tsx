@@ -8,6 +8,9 @@ import type {
   KnowledgeSource
 } from "../../types";
 
+// pdfjs worker 顶层静态导入，Vite 构建时即可解析，避免 Docker 容器内动态 ?url 解析失败
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
 interface AiPageProps {
   actor: Actor;
   messages: ChatMessage[];
@@ -24,7 +27,68 @@ interface AiPageProps {
     category: string;
     tags: string[];
   }) => Promise<void>;
+  onUploadKnowledgeFile: (payload: {
+    title: string;
+    content: string;
+    category: string;
+    tags: string[];
+    fileName?: string;
+    mimeType?: string;
+  }) => Promise<void>;
   onDeleteKnowledge: (id: string) => Promise<void>;
+}
+
+async function readKnowledgeFile(file: File) {
+  const fileName = file.name;
+  const mimeType = file.type || "application/octet-stream";
+  const extension = fileName.split(".").pop()?.toLowerCase();
+  let content = "";
+
+  if (
+    mimeType.startsWith("text/") ||
+    ["txt", "md", "markdown", "json", "csv", "log", "yaml", "yml"].includes(extension ?? "")
+  ) {
+    content = await file.text();
+  } else if (mimeType === "application/pdf" || extension === "pdf") {
+    const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data: buffer }).promise;
+    const chunks: string[] = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const contentItems = await page.getTextContent();
+      const pageText = contentItems.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (pageText) {
+        chunks.push(`第 ${pageNumber} 页\n${pageText}`);
+      }
+    }
+    content = chunks.join("\n\n");
+  } else if (
+    mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    extension === "docx"
+  ) {
+    const mammoth = await import("mammoth/mammoth.browser");
+    const buffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+    content = result.value.replace(/\n{3,}/g, "\n\n").trim();
+  } else {
+    throw new Error("当前仅支持 txt / md / json / csv / pdf / docx 作为知识库来源文件。");
+  }
+
+  if (!content.trim()) {
+    throw new Error("文件已读取，但没有提取到可用文本内容。");
+  }
+
+  return {
+    fileName,
+    mimeType,
+    content
+  };
 }
 
 export function AiPage({
@@ -38,6 +102,7 @@ export function AiPage({
   onSendMessage,
   onClearHistory,
   onCreateKnowledge,
+  onUploadKnowledgeFile,
   onDeleteKnowledge
 }: AiPageProps) {
   const [message, setMessage] = useState("");
@@ -47,6 +112,9 @@ export function AiPage({
     category: "general",
     tags: ""
   });
+  const [knowledgeFile, setKnowledgeFile] = useState<File | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   return (
     <div className="page-grid">
@@ -138,18 +206,86 @@ export function AiPage({
               className="form-grid compact"
               onSubmit={async (event) => {
                 event.preventDefault();
-                await onCreateKnowledge({
-                  title: knowledgeDraft.title,
-                  content: knowledgeDraft.content,
-                  category: knowledgeDraft.category,
-                  tags: knowledgeDraft.tags
-                    .split(",")
-                    .map((item) => item.trim())
-                    .filter(Boolean)
-                });
-                setKnowledgeDraft({ title: "", content: "", category: "general", tags: "" });
+                setUploadError("");
+                const tags = knowledgeDraft.tags
+                  .split(",")
+                  .map((item) => item.trim())
+                  .filter(Boolean);
+                setUploadBusy(true);
+
+                try {
+                  if (knowledgeFile) {
+                    const parsed = await readKnowledgeFile(knowledgeFile);
+                    const mergedContent = knowledgeDraft.content.trim()
+                      ? `${parsed.content}\n\n---\n补充说明：\n${knowledgeDraft.content.trim()}`
+                      : parsed.content;
+                    await onUploadKnowledgeFile({
+                      title: knowledgeDraft.title || knowledgeFile.name.replace(/\.[^.]+$/, ""),
+                      content: mergedContent,
+                      category: knowledgeDraft.category,
+                      tags,
+                      fileName: parsed.fileName,
+                      mimeType: parsed.mimeType
+                    });
+                  } else {
+                    await onCreateKnowledge({
+                      title: knowledgeDraft.title,
+                      content: knowledgeDraft.content,
+                      category: knowledgeDraft.category,
+                      tags
+                    });
+                  }
+                  setKnowledgeDraft({ title: "", content: "", category: "general", tags: "" });
+                  setKnowledgeFile(null);
+                } catch (submitError) {
+                  setUploadError(
+                    submitError instanceof Error ? submitError.message : "知识文件处理失败"
+                  );
+                } finally {
+                  setUploadBusy(false);
+                }
               }}
             >
+              <label
+                className="file-dropzone compact-dropzone"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const file = event.dataTransfer.files?.[0];
+                  if (!file) return;
+                  setKnowledgeFile(file);
+                  setKnowledgeDraft((current) => ({
+                    ...current,
+                    title: current.title || file.name.replace(/\.[^.]+$/, "")
+                  }));
+                }}
+              >
+                <span>点击选择知识文件或直接拖拽到这里</span>
+                <small>
+                  支持 txt、md、json、csv、pdf、docx；上传后会先抽取正文，再写入知识库。
+                </small>
+                <input
+                  type="file"
+                  accept=".txt,.md,.markdown,.json,.csv,.log,.yaml,.yml,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    setUploadError("");
+                    setKnowledgeFile(file);
+                    setKnowledgeDraft((current) => ({
+                      ...current,
+                      title: current.title || file.name.replace(/\.[^.]+$/, "")
+                    }));
+                  }}
+                />
+              </label>
+              {knowledgeFile ? (
+                <div className="upload-chip">
+                  已选择：{knowledgeFile.name}
+                  <small>{knowledgeFile.type || "未知类型"}</small>
+                </div>
+              ) : null}
+              {uploadError ? <div className="error-banner">{uploadError}</div> : null}
               <label>
                 文档标题
                 <input
@@ -182,12 +318,19 @@ export function AiPage({
                 内容
                 <textarea
                   value={knowledgeDraft.content}
+                  placeholder={
+                    knowledgeFile
+                      ? "已选择文件，提交时会自动抽取正文；这里可以额外补充摘要、适用范围或备注。"
+                      : "直接粘贴制度、SOP、流程或项目背景内容。"
+                  }
                   onChange={(event) =>
                     setKnowledgeDraft((current) => ({ ...current, content: event.target.value }))
                   }
                 />
               </label>
-              <button className="secondary-button">添加知识文档</button>
+              <button className="secondary-button" disabled={uploadBusy}>
+                {uploadBusy ? "处理中..." : knowledgeFile ? "上传知识文件" : "添加知识文档"}
+              </button>
             </form>
           </SectionCard>
 
@@ -207,6 +350,11 @@ export function AiPage({
                         <small>{doc.category}</small>
                       </div>
                       <StatusBadge tone="muted">{doc.tags.join(" / ") || "未标记"}</StatusBadge>
+                    </div>
+                    <div className="knowledge-meta-strip">
+                      <span>{doc.sourceImportMethod === "upload" ? "文件导入" : "手工录入"}</span>
+                      <span>{doc.sourceFileName ?? "无源文件"}</span>
+                      <span>{doc.sourceMimeType ?? "text/plain"}</span>
                     </div>
                     <p>{doc.content}</p>
                     <button

@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
 import { meetingStatusText, notificationTypeText, toDatetimeLocal } from "../../utils/helpers";
-import type { Actor, Meeting, NotificationItem } from "../../types";
+import type { Actor, Meeting, NotificationItem, Project } from "../../types";
 
 interface MeetingsPageProps {
   actor: Actor;
+  projects: Project[];
+  selectedProjectId: string;
   meetings: Meeting[];
   notifications: NotificationItem[];
   onCreateMeeting: (payload: {
+    projectId?: string;
     title: string;
     startsAt: string;
     endsAt: string;
@@ -16,18 +19,26 @@ interface MeetingsPageProps {
     participantIds: string[];
     summary: string;
   }) => Promise<void>;
-  onPublishAnnouncement: (payload: { title: string; content: string }) => Promise<void>;
+  onPublishAnnouncement: (payload: {
+    title: string;
+    content: string;
+    projectId?: string;
+  }) => Promise<void>;
   onMarkNotificationRead: (notificationId: string) => Promise<void>;
 }
 
 export function MeetingsPage({
   actor,
+  projects,
+  selectedProjectId,
   meetings,
   notifications,
   onCreateMeeting,
   onPublishAnnouncement,
   onMarkNotificationRead
 }: MeetingsPageProps) {
+  const [meetingProjectId, setMeetingProjectId] = useState(selectedProjectId);
+  const [announcementScope, setAnnouncementScope] = useState(selectedProjectId || "__all__");
   const [meetingDraft, setMeetingDraft] = useState({
     title: "课题组周会",
     startsAt: toDatetimeLocal(new Date(Date.now() + 86400000)),
@@ -40,6 +51,15 @@ export function MeetingsPage({
     title: "实验室通知",
     content: "请相关成员按时提交本周实验记录与会议纪要。"
   });
+  const projectNameMap = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects]
+  );
+
+  useEffect(() => {
+    setMeetingProjectId(selectedProjectId);
+    setAnnouncementScope(selectedProjectId || "__all__");
+  }, [selectedProjectId]);
 
   return (
     <div className="page-grid">
@@ -70,6 +90,11 @@ export function MeetingsPage({
                   </div>
                   <p>{meeting.summary}</p>
                   <div className="meta-grid">
+                    <span>
+                      {meeting.projectId
+                        ? `项目：${projectNameMap.get(meeting.projectId) ?? meeting.projectId}`
+                        : "项目：未指定"}
+                    </span>
                     <span>{new Date(meeting.startsAt).toLocaleString("zh-CN")}</span>
                     <span>{meeting.location}</span>
                   </div>
@@ -89,6 +114,7 @@ export function MeetingsPage({
                   <div>
                     <strong>{item.title}</strong>
                     <small>{notificationTypeText(item.type)}</small>
+                    <small>发布时间：{new Date(item.createdAt).toLocaleString("zh-CN")}</small>
                     <p>{item.content}</p>
                   </div>
                   {!item.readAt ? (
@@ -115,11 +141,26 @@ export function MeetingsPage({
               onSubmit={async (event) => {
                 event.preventDefault();
                 await onCreateMeeting({
+                  projectId: meetingProjectId || undefined,
                   ...meetingDraft,
                   participantIds: []
                 });
               }}
             >
+              <label>
+                会议所属项目
+                <select
+                  value={meetingProjectId}
+                  onChange={(event) => setMeetingProjectId(event.target.value)}
+                >
+                  <option value="">请选择项目</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>
                 会议主题
                 <input
@@ -167,7 +208,9 @@ export function MeetingsPage({
                   }
                 />
               </label>
-              <button className="primary-button">创建会议</button>
+              <button className="primary-button" disabled={!meetingProjectId}>
+                创建会议并通知项目组
+              </button>
             </form>
           </SectionCard>
 
@@ -176,9 +219,26 @@ export function MeetingsPage({
               className="form-grid compact"
               onSubmit={async (event) => {
                 event.preventDefault();
-                await onPublishAnnouncement(announcementDraft);
+                await onPublishAnnouncement({
+                  ...announcementDraft,
+                  projectId: announcementScope === "__all__" ? undefined : announcementScope
+                });
               }}
             >
+              <label>
+                发送范围
+                <select
+                  value={announcementScope}
+                  onChange={(event) => setAnnouncementScope(event.target.value)}
+                >
+                  <option value="__all__">全部项目成员</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      当前项目 · {project.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>
                 公告标题
                 <input

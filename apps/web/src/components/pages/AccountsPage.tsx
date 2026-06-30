@@ -1,7 +1,12 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
-import { defaultResetPassword, phonePattern, roleText } from "../../utils/helpers";
-import type { Actor, ManagedUser, Role } from "../../types";
+import {
+  defaultResetPassword,
+  identityTypeText,
+  phonePattern,
+  roleText
+} from "../../utils/helpers";
+import type { Actor, IdentityType, ManagedUser, Role } from "../../types";
 
 interface AccountsPageProps {
   actor: Actor;
@@ -12,7 +17,8 @@ interface AccountsPageProps {
   onRegisterUser: (payload: {
     username: string;
     password: string;
-    studentId: string;
+    identityType: IdentityType;
+    identityNo: string;
     displayName: string;
     role: Role;
   }) => Promise<void>;
@@ -37,7 +43,8 @@ export function AccountsPage({
   const [registerDraft, setRegisterDraft] = useState({
     username: "",
     password: defaultResetPassword,
-    studentId: "",
+    identityType: "student_no" as IdentityType,
+    identityNo: "",
     displayName: "",
     role: "student" as Role
   });
@@ -48,7 +55,7 @@ export function AccountsPage({
     const keyword = deferredSearch.trim().toLowerCase();
     return users.filter((user) =>
       keyword
-        ? [user.displayName, user.username, user.studentId ?? ""].some((field) =>
+        ? [user.displayName, user.username, user.identityNo ?? ""].some((field) =>
             field.toLowerCase().includes(keyword)
           )
         : true
@@ -64,12 +71,16 @@ export function AccountsPage({
             <div>
               <h3>{profile?.displayName ?? actor.displayName}</h3>
               <p>
-                {roleText(profile?.role ?? actor.role)} · {profile?.studentId ?? actor.username}
+                {roleText(profile?.role ?? actor.role)} · {profile?.identityNo ?? actor.username}
               </p>
             </div>
           </div>
           <div className="meta-grid">
             <span>账号：{profile?.username ?? actor.username}</span>
+            <span>
+              {profile ? identityTypeText(profile.identityType) : "身份号"}：
+              {profile?.identityNo ?? "-"}
+            </span>
             <span>手机号：{profile?.phone ?? "未绑定"}</span>
             <span>认证方式：{profile?.identityProvider ?? "local"}</span>
             <span>
@@ -140,7 +151,8 @@ export function AccountsPage({
                 setRegisterDraft({
                   username: "",
                   password: defaultResetPassword,
-                  studentId: "",
+                  identityType: "student_no",
+                  identityNo: "",
                   displayName: "",
                   role: "student"
                 });
@@ -156,11 +168,26 @@ export function AccountsPage({
                 />
               </label>
               <label>
+                身份类型
+                <select
+                  value={registerDraft.identityType}
+                  onChange={(event) =>
+                    setRegisterDraft((current) => ({
+                      ...current,
+                      identityType: event.target.value as IdentityType
+                    }))
+                  }
+                >
+                  <option value="student_no">学号</option>
+                  <option value="employee_no">工号</option>
+                </select>
+              </label>
+              <label>
                 学号/工号
                 <input
-                  value={registerDraft.studentId}
+                  value={registerDraft.identityNo}
                   onChange={(event) =>
-                    setRegisterDraft((current) => ({ ...current, studentId: event.target.value }))
+                    setRegisterDraft((current) => ({ ...current, identityNo: event.target.value }))
                   }
                 />
               </label>
@@ -180,7 +207,8 @@ export function AccountsPage({
                   onChange={(event) =>
                     setRegisterDraft((current) => ({
                       ...current,
-                      role: event.target.value as Role
+                      role: event.target.value as Role,
+                      identityType: event.target.value === "student" ? "student_no" : "employee_no"
                     }))
                   }
                 >
@@ -205,7 +233,7 @@ export function AccountsPage({
           <SectionCard title="成员列表" eyebrow="Role Matrix">
             <div className="toolbar-row">
               <input
-                placeholder="搜索用户名、姓名或学号"
+                placeholder="搜索用户名、姓名、学号或工号"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -220,7 +248,7 @@ export function AccountsPage({
                     <div>
                       <strong>{user.displayName}</strong>
                       <small>
-                        {user.username} · {user.studentId ?? "-"}
+                        {user.username} · {identityTypeText(user.identityType)} {user.identityNo}
                       </small>
                     </div>
                     <div className="row-inline wrap">

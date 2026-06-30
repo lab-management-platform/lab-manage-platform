@@ -1,4 +1,5 @@
 export type Role = "student" | "professor" | "lab_admin" | "member" | "admin" | "super_admin";
+export type IdentityType = "student_no" | "employee_no";
 
 export type Permission =
   | "user:read"
@@ -28,7 +29,8 @@ export interface Actor {
 export interface LocalUserRegistrationRequest {
   username: string;
   password: string;
-  studentId: string;
+  identityType: IdentityType;
+  identityNo: string;
   displayName: string;
   role: Role;
 }
@@ -36,7 +38,8 @@ export interface LocalUserRegistrationRequest {
 export interface ManagedUser {
   id: string;
   username: string;
-  studentId?: string;
+  identityType: IdentityType;
+  identityNo: string;
   phone?: string;
   displayName: string;
   role: Role;

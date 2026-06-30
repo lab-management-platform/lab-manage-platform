@@ -3,6 +3,7 @@ import pg from "pg";
 import type {
   Actor,
   AuthPort,
+  IdentityType,
   LocalUserRegistrationRequest,
   ManagedUser,
   Permission,
@@ -95,7 +96,8 @@ const rolePermissions: Record<Role, Permission[]> = {
 interface DemoUser {
   id: string;
   username: string;
-  studentId?: string;
+  identityType: IdentityType;
+  identityNo: string;
   phone?: string;
   displayName: string;
   role: Role;
@@ -106,7 +108,8 @@ const demoUsers: DemoUser[] = [
   {
     id: "u-admin",
     username: "admin",
-    studentId: "T000001",
+    identityType: "employee_no",
+    identityNo: "EMP-ADMIN-001",
     displayName: "实验室管理员",
     role: "lab_admin" as const,
     password: "Admin@123456"
@@ -114,7 +117,8 @@ const demoUsers: DemoUser[] = [
   {
     id: "u-prof001",
     username: "professor",
-    studentId: "T000002",
+    identityType: "employee_no",
+    identityNo: "EMP-PROF-001",
     displayName: "张教授",
     role: "professor" as const,
     password: "Professor@123456"
@@ -122,14 +126,15 @@ const demoUsers: DemoUser[] = [
   {
     id: "u-student001",
     username: "student001",
-    studentId: "S000001",
+    identityType: "student_no",
+    identityNo: "STU-001",
     displayName: "学生一号",
     role: "student" as const,
     password: "Student@123456"
   }
 ];
 
-const studentIdPattern = /^[A-Za-z0-9_-]{4,32}$/;
+const identityNoPattern = /^[A-Za-z0-9_-]{4,32}$/;
 const phonePattern = /^1[3-9]\d{9}$/;
 
 function shouldSeedDemoAccounts(): boolean {
@@ -163,14 +168,20 @@ function validateLocalRegistration(request: LocalUserRegistrationRequest): void 
   if (request.password.length < 8) {
     throw new Error("password must be at least 8 characters");
   }
-  if (!studentIdPattern.test(request.studentId)) {
-    throw new Error("studentId must be 4-32 letters, numbers, underscores or hyphens");
+  if (!identityNoPattern.test(request.identityNo)) {
+    throw new Error("identityNo must be 4-32 letters, numbers, underscores or hyphens");
   }
   if (!request.displayName.trim()) {
     throw new Error("displayName is required");
   }
-  if (!["admin", "member"].includes(request.role)) {
-    throw new Error("role must be admin or member");
+  if (!["student", "professor", "lab_admin"].includes(request.role)) {
+    throw new Error("role must be student, professor or lab_admin");
+  }
+  if (request.role === "student" && request.identityType !== "student_no") {
+    throw new Error("student role must use student_no");
+  }
+  if (["professor", "lab_admin"].includes(request.role) && request.identityType !== "employee_no") {
+    throw new Error("professor/lab_admin role must use employee_no");
   }
 }
 
@@ -184,7 +195,8 @@ function toManagedUser(user: DemoUser): ManagedUser {
   return {
     id: user.id,
     username: user.username,
-    studentId: user.studentId,
+    identityType: user.identityType,
+    identityNo: user.identityNo,
     phone: user.phone,
     displayName: user.displayName,
     role: user.role,
@@ -202,7 +214,7 @@ export class DemoAuthAdapter implements AuthPort {
     const user = this.users.find(
       (item) =>
         item.password === password &&
-        [item.username, item.studentId, item.phone].some((value) => value === username)
+        [item.username, item.identityNo, item.phone].some((value) => value === username)
     );
     if (!user) {
       return null;
@@ -219,14 +231,15 @@ export class DemoAuthAdapter implements AuthPort {
     if (this.users.some((user) => user.username === request.username)) {
       throw new Error("username already exists");
     }
-    if (this.users.some((user) => user.studentId === request.studentId)) {
-      throw new Error("studentId already exists");
+    if (this.users.some((user) => user.identityNo === request.identityNo)) {
+      throw new Error("identityNo already exists");
     }
 
     const user = {
       id: `u-${request.username}`,
       username: request.username,
-      studentId: request.studentId,
+      identityType: request.identityType,
+      identityNo: request.identityNo,
       displayName: request.displayName,
       role: request.role,
       password: request.password
@@ -240,7 +253,7 @@ export class DemoAuthAdapter implements AuthPort {
     void includeInactive;
     return this.users
       .filter((user) =>
-        [user.username, user.displayName, user.studentId ?? "", user.phone ?? ""].some((value) =>
+        [user.username, user.displayName, user.identityNo, user.phone ?? ""].some((value) =>
           value.toLowerCase().includes(keyword)
         )
       )
@@ -290,8 +303,8 @@ export class DemoAuthAdapter implements AuthPort {
     if (!user) {
       throw new Error("user not found");
     }
-    if (user.role !== "member") {
-      throw new Error("only member password can be reset here");
+    if (user.role === "super_admin") {
+      throw new Error("super admin password cannot be reset here");
     }
     user.password = newPassword;
   }
@@ -302,15 +315,15 @@ export class DemoAuthAdapter implements AuthPort {
     if (!user) {
       throw new Error("user not found");
     }
-    if (user.role !== "member") {
-      throw new Error("only member can be deleted here");
+    if (user.role === "super_admin") {
+      throw new Error("super admin cannot be deleted here");
     }
     this.users.splice(userIndex, 1);
   }
 
   async updateUserRole(targetUserId: string, role: Role): Promise<ManagedUser> {
-    if (!["admin", "member"].includes(role)) {
-      throw new Error("role must be admin or member");
+    if (!["student", "professor", "lab_admin"].includes(role)) {
+      throw new Error("role must be student, professor or lab_admin");
     }
     const user = this.users.find((item) => item.id === targetUserId);
     if (!user) {
@@ -331,7 +344,7 @@ export class DemoAuthAdapter implements AuthPort {
     }
 
     const role = rawToken as Role;
-    if (!["super_admin", "admin", "member"].includes(role)) {
+    if (!["lab_admin", "professor", "student"].includes(role)) {
       return null;
     }
 
@@ -367,6 +380,8 @@ export class PostgresAuthAdapter implements AuthPort {
         username TEXT UNIQUE NOT NULL,
         phone TEXT UNIQUE,
         student_id TEXT UNIQUE,
+        identity_type TEXT NOT NULL DEFAULT 'student_no',
+        identity_no TEXT UNIQUE,
         password_hash TEXT NOT NULL,
         display_name TEXT NOT NULL,
         role TEXT NOT NULL CHECK (role IN ('student', 'professor', 'lab_admin')),
@@ -378,8 +393,28 @@ export class PostgresAuthAdapter implements AuthPort {
 
       ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS phone TEXT UNIQUE;
       ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS student_id TEXT UNIQUE;
+      ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS identity_type TEXT NOT NULL DEFAULT 'student_no';
+      ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS identity_no TEXT UNIQUE;
       ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS identity_provider TEXT NOT NULL DEFAULT 'local';
       ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS external_subject TEXT;
+
+      UPDATE core.app_user
+      SET identity_type = CASE
+            WHEN role = 'student' THEN 'student_no'
+            ELSE 'employee_no'
+          END
+      WHERE identity_type IS NULL OR identity_type NOT IN ('student_no', 'employee_no');
+
+      UPDATE core.app_user
+      SET identity_no = COALESCE(
+            identity_no,
+            student_id,
+            CASE
+              WHEN role = 'student' THEN CONCAT('STU-', id)
+              ELSE CONCAT('EMP-', id)
+            END
+          )
+      WHERE identity_no IS NULL OR identity_no = '';
 
       -- Migration: update role system (drop old constraint first!)
       ALTER TABLE core.app_user DROP CONSTRAINT IF EXISTS app_user_role_check;
@@ -402,17 +437,30 @@ export class PostgresAuthAdapter implements AuthPort {
 
     for (const user of demoUsers) {
       await this.pool.query(
-        `INSERT INTO core.app_user (id, username, student_id, password_hash, display_name, role)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO core.app_user (
+           id,
+           username,
+           student_id,
+           identity_type,
+           identity_no,
+           password_hash,
+           display_name,
+           role
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (username) DO UPDATE SET
            role = EXCLUDED.role,
            display_name = EXCLUDED.display_name,
            student_id = EXCLUDED.student_id,
+           identity_type = EXCLUDED.identity_type,
+           identity_no = EXCLUDED.identity_no,
            password_hash = EXCLUDED.password_hash`,
         [
           user.id,
           user.username,
-          user.studentId,
+          user.identityType === "student_no" ? user.identityNo : null,
+          user.identityType,
+          user.identityNo,
           hashPassword(user.password),
           user.displayName,
           user.role
@@ -432,7 +480,7 @@ export class PostgresAuthAdapter implements AuthPort {
       `SELECT id, username, display_name, role, password_hash
        FROM core.app_user
        WHERE active = true
-         AND (username = $1 OR student_id = $1 OR phone = $1)`,
+         AND (username = $1 OR identity_no = $1 OR student_id = $1 OR phone = $1)`,
       [username]
     );
     const user = userResult.rows[0];
@@ -461,13 +509,25 @@ export class PostgresAuthAdapter implements AuthPort {
         role: Role;
       }>(
         `INSERT INTO core.app_user
-          (id, username, student_id, password_hash, display_name, role, identity_provider)
-         VALUES ($1, $2, $3, $4, $5, $6, 'local')
+          (
+            id,
+            username,
+            student_id,
+            identity_type,
+            identity_no,
+            password_hash,
+            display_name,
+            role,
+            identity_provider
+          )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'local')
          RETURNING id, username, display_name, role`,
         [
           `u-${randomUUID()}`,
           request.username,
-          request.studentId,
+          request.identityType === "student_no" ? request.identityNo : null,
+          request.identityType,
+          request.identityNo,
           hashPassword(request.password),
           request.displayName,
           request.role
@@ -482,7 +542,7 @@ export class PostgresAuthAdapter implements AuthPort {
         "code" in error &&
         (error as { code?: string }).code === "23505"
       ) {
-        throw new Error("username or studentId already exists");
+        throw new Error("username or identityNo already exists");
       }
       throw error;
     }
@@ -493,7 +553,8 @@ export class PostgresAuthAdapter implements AuthPort {
     const result = await this.pool.query<{
       id: string;
       username: string;
-      student_id: string | null;
+      identity_type: IdentityType;
+      identity_no: string | null;
       phone: string | null;
       display_name: string;
       role: Role;
@@ -501,13 +562,14 @@ export class PostgresAuthAdapter implements AuthPort {
       active: boolean;
       created_at: string;
     }>(
-      `SELECT id, username, student_id, phone, display_name, role, identity_provider, active, created_at
+      `SELECT id, username, identity_type, identity_no, phone, display_name, role, identity_provider, active, created_at
        FROM core.app_user
        WHERE ($2 = true OR active = true)
          AND (
           $1 = '%%'
           OR username ILIKE $1
           OR display_name ILIKE $1
+          OR identity_no ILIKE $1
           OR student_id ILIKE $1
           OR phone ILIKE $1
          )
@@ -519,7 +581,8 @@ export class PostgresAuthAdapter implements AuthPort {
     return result.rows.map((user) => ({
       id: user.id,
       username: user.username,
-      studentId: user.student_id ?? undefined,
+      identityType: user.identity_type,
+      identityNo: user.identity_no ?? "",
       phone: user.phone ?? undefined,
       displayName: user.display_name,
       role: user.role,
@@ -533,7 +596,8 @@ export class PostgresAuthAdapter implements AuthPort {
     const result = await this.pool.query<{
       id: string;
       username: string;
-      student_id: string | null;
+      identity_type: IdentityType;
+      identity_no: string | null;
       phone: string | null;
       display_name: string;
       role: Role;
@@ -541,7 +605,7 @@ export class PostgresAuthAdapter implements AuthPort {
       active: boolean;
       created_at: string;
     }>(
-      `SELECT id, username, student_id, phone, display_name, role, identity_provider, active, created_at
+      `SELECT id, username, identity_type, identity_no, phone, display_name, role, identity_provider, active, created_at
        FROM core.app_user
        WHERE id = $1`,
       [actorId]
@@ -552,7 +616,8 @@ export class PostgresAuthAdapter implements AuthPort {
       ? {
           id: user.id,
           username: user.username,
-          studentId: user.student_id ?? undefined,
+          identityType: user.identity_type,
+          identityNo: user.identity_no ?? "",
           phone: user.phone ?? undefined,
           displayName: user.display_name,
           role: user.role,
@@ -634,8 +699,8 @@ export class PostgresAuthAdapter implements AuthPort {
     if (!user) {
       throw new Error("user not found");
     }
-    if (user.role !== "member") {
-      throw new Error("only member password can be reset here");
+    if (user.role === "super_admin") {
+      throw new Error("super admin password cannot be reset here");
     }
     if (user.identity_provider !== "local") {
       throw new Error("password is managed by identity provider");
@@ -651,20 +716,20 @@ export class PostgresAuthAdapter implements AuthPort {
     const result = await this.pool.query<{ role: Role }>(
       `UPDATE core.app_user
        SET active = false
-       WHERE id = $1 AND active = true AND role = 'member'
+       WHERE id = $1 AND active = true AND role != 'super_admin'
        RETURNING role`,
       [targetUserId]
     );
     if (!result.rows[0]) {
-      throw new Error("active member user not found");
+      throw new Error("active user not found");
     }
 
     await this.pool.query(`DELETE FROM core.session WHERE user_id = $1`, [targetUserId]);
   }
 
   async updateUserRole(targetUserId: string, role: Role): Promise<ManagedUser> {
-    if (!["admin", "member"].includes(role)) {
-      throw new Error("role must be admin or member");
+    if (!["student", "professor", "lab_admin"].includes(role)) {
+      throw new Error("role must be student, professor or lab_admin");
     }
 
     const result = await this.pool.query<{ role: Role }>(

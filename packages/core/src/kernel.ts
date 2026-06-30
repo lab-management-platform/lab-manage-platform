@@ -123,7 +123,7 @@ export class Kernel {
       throw new Error("未找到匹配的用户");
     }
     const user = users.find(
-      (u) => u.phone === phone && [u.username, u.studentId].some((v) => v === identifier)
+      (u) => u.phone === phone && [u.username, u.identityNo].some((v) => v === identifier)
     );
     if (!user) {
       throw new Error("手机号不匹配或未绑定");

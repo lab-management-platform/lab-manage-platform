@@ -34,7 +34,7 @@ export async function createApiApp() {
       phone?: string;
     };
     if (!identifier?.trim() || !phone?.trim()) {
-      return reply.code(400).send({ error: "请提供账号/学号/工号和绑定的手机号" });
+      return reply.code(400).send({ error: "请提供账号、学号/工号或绑定手机号" });
     }
 
     try {
@@ -162,22 +162,31 @@ export async function createApiApp() {
     const body = request.body as Partial<{
       username: string;
       password: string;
-      studentId: string;
+      identityType: "student_no" | "employee_no";
+      identityNo: string;
       displayName: string;
       role: "student" | "professor" | "lab_admin";
     }>;
 
-    if (!body.username || !body.password || !body.studentId || !body.displayName || !body.role) {
-      return reply
-        .code(400)
-        .send({ error: "username, password, studentId, displayName and role are required" });
+    if (
+      !body.username ||
+      !body.password ||
+      !body.identityType ||
+      !body.identityNo ||
+      !body.displayName ||
+      !body.role
+    ) {
+      return reply.code(400).send({
+        error: "username, password, identityType, identityNo, displayName and role are required"
+      });
     }
 
     try {
       const user = await kernel.registerLocalUser({
         username: body.username,
         password: body.password,
-        studentId: body.studentId,
+        identityType: body.identityType,
+        identityNo: body.identityNo,
         displayName: body.displayName,
         role: body.role
       });
@@ -241,12 +250,9 @@ export async function createApiApp() {
     }
 
     const body = request.body as Partial<{
-      role: "student" | "professor" | "lab_admin" | "member" | "admin";
+      role: "student" | "professor" | "lab_admin";
     }>;
-    if (
-      !body.role ||
-      !["student", "professor", "lab_admin", "member", "admin"].includes(body.role)
-    ) {
+    if (!body.role || !["student", "professor", "lab_admin"].includes(body.role)) {
       return reply.code(400).send({ error: "invalid role" });
     }
 

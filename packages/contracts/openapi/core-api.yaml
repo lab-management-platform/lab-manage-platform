@@ -82,21 +82,24 @@ paths:
           application/json:
             schema:
               type: object
-              required: [username, password, studentId, displayName, role]
+              required: [username, password, identityType, identityNo, displayName, role]
               properties:
                 username:
                   type: string
                 password:
                   type: string
                   minLength: 8
-                studentId:
+                identityType:
+                  type: string
+                  enum: [student_no, employee_no]
+                identityNo:
                   type: string
                   pattern: "^[A-Za-z0-9_-]{4,32}$"
                 displayName:
                   type: string
                 role:
                   type: string
-                  enum: [admin, member]
+                  enum: [student, professor, lab_admin]
       responses:
         "201":
           description: 已创建账号
@@ -107,7 +110,7 @@ paths:
         "403":
           description: 无注册权限
         "409":
-          description: 用户名或学号/工号已存在
+          description: 用户名或身份号已存在
   /auth/profile:
     get:
       summary: 获取当前用户资料
@@ -245,7 +248,7 @@ paths:
   /auth/users/{id}/role:
     patch:
       summary: 管理员调整用户角色
-      description: 可在 member 与 admin 之间调整；不能调整当前登录账号与 super_admin。
+      description: 可在 student / professor / lab_admin 之间调整；不能调整当前登录账号与 super_admin。
       security:
         - bearerAuth: []
       parameters:
@@ -264,7 +267,7 @@ paths:
               properties:
                 role:
                   type: string
-                  enum: [admin, member]
+                  enum: [student, professor, lab_admin]
       responses:
         "200":
           description: OK
@@ -740,7 +743,7 @@ components:
           type: string
         role:
           type: string
-          enum: [super_admin, admin, member]
+          enum: [student, professor, lab_admin, member, admin, super_admin]
         permissions:
           type: array
           items:
@@ -753,7 +756,10 @@ components:
           type: string
         username:
           type: string
-        studentId:
+        identityType:
+          type: string
+          enum: [student_no, employee_no]
+        identityNo:
           type: string
         phone:
           type: string
@@ -761,7 +767,7 @@ components:
           type: string
         role:
           type: string
-          enum: [super_admin, admin, member]
+          enum: [student, professor, lab_admin, member, admin, super_admin]
         identityProvider:
           type: string
         active:

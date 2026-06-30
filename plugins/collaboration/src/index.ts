@@ -7,6 +7,7 @@ type NotificationType = "announcement" | "meeting" | "approval" | "task" | "syst
 
 interface Meeting {
   id: string;
+  projectId?: string;
   title: string;
   startsAt: string;
   endsAt: string;
@@ -36,7 +37,14 @@ interface Notification {
   createdAt: string;
 }
 
+interface NotificationReadReceipt {
+  notificationId: string;
+  actorId: string;
+  readAt: string;
+}
+
 interface MeetingCreateRequest {
+  projectId?: string;
   title: string;
   startsAt: string;
   endsAt: string;
@@ -57,12 +65,14 @@ interface AnnouncementRequest {
   title: string;
   content: string;
   recipientIds?: string[];
+  projectId?: string;
 }
 
 interface CollaborationRepository {
   initialize(): Promise<void>;
   listMeetings(actor: Actor): Promise<Meeting[]>;
   createMeeting(input: Omit<Meeting, "id" | "createdAt" | "updatedAt">): Promise<Meeting>;
+  listProjectRecipientIds(projectId: string): Promise<string[]>;
   updateMeetingMinutes(
     meetingId: string,
     input: MeetingMinutesRequest & { actorId: string }
@@ -77,6 +87,7 @@ interface CollaborationRepository {
 const seedMeetings: Meeting[] = [
   {
     id: "meet-001",
+    projectId: "p-001",
     title: "平台需求评审会",
     startsAt: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(),
     endsAt: new Date(Date.now() + 1000 * 60 * 60 * 25).toISOString(),
@@ -106,6 +117,7 @@ const seedNotifications: Notification[] = [
 class MemoryCollaborationRepository implements CollaborationRepository {
   private readonly meetings = structuredClone(seedMeetings);
   private readonly notifications = structuredClone(seedNotifications);
+  private readonly readReceipts: NotificationReadReceipt[] = [];
 
   async initialize(): Promise<void> {
     return Promise.resolve();
@@ -129,6 +141,10 @@ class MemoryCollaborationRepository implements CollaborationRepository {
     return meeting;
   }
 
+  async listProjectRecipientIds(_projectId: string): Promise<string[]> {
+    return ["u-admin", "u-student001"];
+  }
+
   async updateMeetingMinutes(
     meetingId: string,
     input: MeetingMinutesRequest & { actorId: string }
@@ -150,10 +166,17 @@ class MemoryCollaborationRepository implements CollaborationRepository {
       .filter((notification) => !notification.recipientId || notification.recipientId === actor.id)
       .filter(
         (notification) =>
-          notification.type !== "meeting" ||
-          notification.createdBy !== actor.id ||
-          notification.recipientId !== actor.id
+          !(
+            notification.createdBy === actor.id &&
+            ["meeting", "announcement"].includes(notification.type)
+          )
       )
+      .map((notification) => ({
+        ...notification,
+        readAt: this.readReceipts.find(
+          (receipt) => receipt.notificationId === notification.id && receipt.actorId === actor.id
+        )?.readAt
+      }))
       .filter((notification) => !unreadOnly || !notification.readAt)
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
@@ -177,8 +200,14 @@ class MemoryCollaborationRepository implements CollaborationRepository {
     if (!notification) {
       return null;
     }
-    notification.readAt = notification.readAt ?? new Date().toISOString();
-    return notification;
+    const existing = this.readReceipts.find(
+      (receipt) => receipt.notificationId === notificationId && receipt.actorId === actor.id
+    );
+    const readAt = existing?.readAt ?? new Date().toISOString();
+    if (!existing) {
+      this.readReceipts.push({ notificationId, actorId: actor.id, readAt });
+    }
+    return { ...notification, readAt };
   }
 }
 
@@ -195,6 +224,7 @@ class PostgresCollaborationRepository implements CollaborationRepository {
 
       CREATE TABLE IF NOT EXISTS collaboration.meeting (
         id TEXT PRIMARY KEY,
+        project_id TEXT,
         title TEXT NOT NULL,
         starts_at TIMESTAMPTZ NOT NULL,
         ends_at TIMESTAMPTZ NOT NULL,
@@ -211,7 +241,6 @@ class PostgresCollaborationRepository implements CollaborationRepository {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       ALTER TABLE collaboration.meeting ADD COLUMN IF NOT EXISTS project_id TEXT;
-      ALTER TABLE collaboration.notification ADD COLUMN IF NOT EXISTS project_id TEXT;
 
       CREATE TABLE IF NOT EXISTS collaboration.notification (
         id TEXT PRIMARY KEY,
@@ -225,10 +254,20 @@ class PostgresCollaborationRepository implements CollaborationRepository {
         created_by TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      ALTER TABLE collaboration.notification ADD COLUMN IF NOT EXISTS project_id TEXT;
+
+      CREATE TABLE IF NOT EXISTS collaboration.notification_read (
+        notification_id TEXT NOT NULL REFERENCES collaboration.notification(id) ON DELETE CASCADE,
+        actor_id TEXT NOT NULL,
+        read_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (notification_id, actor_id)
+      );
 
       CREATE INDEX IF NOT EXISTS meeting_starts_at_idx ON collaboration.meeting(starts_at);
       CREATE INDEX IF NOT EXISTS notification_recipient_idx
         ON collaboration.notification(recipient_id, read_at, created_at DESC);
+      CREATE INDEX IF NOT EXISTS notification_read_actor_idx
+        ON collaboration.notification_read(actor_id, read_at DESC);
     `);
 
     const count = await this.pool.query<{ count: string }>(
@@ -238,12 +277,13 @@ class PostgresCollaborationRepository implements CollaborationRepository {
       for (const meeting of seedMeetings) {
         await this.pool.query(
           `INSERT INTO collaboration.meeting
-            (id, title, starts_at, ends_at, location, online_url, participant_ids,
+            (id, project_id, title, starts_at, ends_at, location, online_url, participant_ids,
              agenda_file_id, minutes_file_id, summary, status, created_by, created_by_name,
              created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
           [
             meeting.id,
+            meeting.projectId ?? null,
             meeting.title,
             meeting.startsAt,
             meeting.endsAt,
@@ -280,12 +320,13 @@ class PostgresCollaborationRepository implements CollaborationRepository {
   async createMeeting(input: Omit<Meeting, "id" | "createdAt" | "updatedAt">): Promise<Meeting> {
     const result = await this.pool.query(
       `INSERT INTO collaboration.meeting
-        (id, title, starts_at, ends_at, location, online_url, participant_ids,
+        (id, project_id, title, starts_at, ends_at, location, online_url, participant_ids,
          agenda_file_id, minutes_file_id, summary, status, created_by, created_by_name)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         randomUUID(),
+        input.projectId ?? null,
         input.title,
         input.startsAt,
         input.endsAt,
@@ -301,6 +342,24 @@ class PostgresCollaborationRepository implements CollaborationRepository {
       ]
     );
     return mapMeetingRow(result.rows[0]);
+  }
+
+  async listProjectRecipientIds(projectId: string): Promise<string[]> {
+    const result = await this.pool.query<{ user_id: string }>(
+      `SELECT DISTINCT user_id
+       FROM projects.project_member
+       WHERE project_id = $1
+       UNION
+       SELECT owner_user_id AS user_id
+       FROM projects.project
+       WHERE id = $1 AND owner_user_id IS NOT NULL
+       UNION
+       SELECT advisor_user_id AS user_id
+       FROM projects.project
+       WHERE id = $1 AND advisor_user_id IS NOT NULL`,
+      [projectId]
+    );
+    return result.rows.map((row) => String(row.user_id)).filter(Boolean);
   }
 
   async updateMeetingMinutes(
@@ -327,10 +386,26 @@ class PostgresCollaborationRepository implements CollaborationRepository {
   async listNotifications(actor: Actor, unreadOnly = false): Promise<Notification[]> {
     const result = await this.pool.query(
       `SELECT *
-       FROM collaboration.notification
-       WHERE (recipient_id IS NULL OR recipient_id = $1)
-         AND NOT (type = 'meeting' AND created_by = $1 AND recipient_id = $1)
-         AND ($2 = false OR read_at IS NULL)
+       FROM (
+         SELECT
+           n.id,
+           n.recipient_id,
+           n.title,
+           n.content,
+           n.type,
+           n.related_type,
+           n.related_id,
+           nr.read_at,
+           n.created_by,
+           n.created_at
+         FROM collaboration.notification n
+         LEFT JOIN collaboration.notification_read nr
+           ON nr.notification_id = n.id
+          AND nr.actor_id = $1
+         WHERE (n.recipient_id IS NULL OR n.recipient_id = $1)
+           AND NOT (n.created_by = $1 AND n.type IN ('meeting', 'announcement'))
+       ) notifications
+       WHERE ($2 = false OR read_at IS NULL)
        ORDER BY created_at DESC
        LIMIT 100`,
       [actor.id, unreadOnly]
@@ -365,11 +440,41 @@ class PostgresCollaborationRepository implements CollaborationRepository {
   }
 
   async markNotificationRead(notificationId: string, actor: Actor): Promise<Notification | null> {
+    const visible = await this.pool.query(
+      `SELECT *
+       FROM collaboration.notification
+       WHERE id = $1
+         AND (recipient_id IS NULL OR recipient_id = $2)
+         AND NOT (created_by = $2 AND type IN ('meeting', 'announcement'))`,
+      [notificationId, actor.id]
+    );
+    if (!visible.rows[0]) {
+      return null;
+    }
+    await this.pool.query(
+      `INSERT INTO collaboration.notification_read (notification_id, actor_id, read_at)
+       VALUES ($1, $2, now())
+       ON CONFLICT (notification_id, actor_id)
+       DO UPDATE SET read_at = collaboration.notification_read.read_at`,
+      [notificationId, actor.id]
+    );
     const result = await this.pool.query(
-      `UPDATE collaboration.notification
-       SET read_at = COALESCE(read_at, now())
-       WHERE id = $1 AND (recipient_id IS NULL OR recipient_id = $2)
-       RETURNING *`,
+      `SELECT
+         n.id,
+         n.recipient_id,
+         n.title,
+         n.content,
+         n.type,
+         n.related_type,
+         n.related_id,
+         nr.read_at,
+         n.created_by,
+         n.created_at
+       FROM collaboration.notification n
+       LEFT JOIN collaboration.notification_read nr
+         ON nr.notification_id = n.id
+        AND nr.actor_id = $2
+       WHERE n.id = $1`,
       [notificationId, actor.id]
     );
     return result.rows[0] ? mapNotificationRow(result.rows[0]) : null;
@@ -379,6 +484,7 @@ class PostgresCollaborationRepository implements CollaborationRepository {
 function mapMeetingRow(row: Record<string, unknown>): Meeting {
   return {
     id: String(row.id),
+    projectId: row.project_id ? String(row.project_id) : undefined,
     title: String(row.title),
     startsAt: new Date(String(row.starts_at)).toISOString(),
     endsAt: new Date(String(row.ends_at)).toISOString(),
@@ -530,8 +636,12 @@ export const collaborationPlugin: PluginManifest = {
               return { status: 400, body: { error } };
             }
 
-            const participantIds = normalizeParticipants(actor, request.participantIds);
+            const projectId = (request as Partial<{ projectId: string }>).projectId?.trim();
+            const participantIds = projectId
+              ? normalizeParticipants(actor, await repository.listProjectRecipientIds(projectId))
+              : normalizeParticipants(actor, request.participantIds);
             const meeting = await repository.createMeeting({
+              projectId,
               title: request.title!.trim(),
               startsAt: new Date(request.startsAt!).toISOString(),
               endsAt: new Date(request.endsAt!).toISOString(),
@@ -652,6 +762,14 @@ export const collaborationPlugin: PluginManifest = {
             if (!notification) {
               return { status: 404, body: { error: "notification not found" } };
             }
+            await context.eventBus.publish({
+              id: randomUUID(),
+              type: "notification.read",
+              version: 1,
+              occurredAt: new Date().toISOString(),
+              source: "collaboration",
+              payload: { notificationId: notification.id, actorId: actor.id }
+            });
             return { body: notification };
           }
         },
@@ -668,9 +786,20 @@ export const collaborationPlugin: PluginManifest = {
             if (!request.title?.trim() || !request.content?.trim()) {
               return { status: 400, body: { error: "title and content are required" } };
             }
-            const recipientIds = request.recipientIds?.map((id) => id.trim()).filter(Boolean) ?? [];
+            const projectId = request.projectId?.trim();
+            const requestedRecipientIds =
+              request.recipientIds?.map((id) => id.trim()).filter(Boolean) ?? [];
+            const recipientIds = projectId
+              ? (await repository.listProjectRecipientIds(projectId)).filter(
+                  (id) => id !== actor.id
+                )
+              : requestedRecipientIds.length > 0
+                ? requestedRecipientIds.filter((id) => id !== actor.id)
+                : ((await context.auth.listUsers?.("", false)) ?? [])
+                    .filter((user) => user.active && user.id !== actor.id)
+                    .map((user) => user.id);
             const notifications = await repository.createNotifications(
-              (recipientIds.length ? recipientIds : [undefined]).map((recipientId) => ({
+              recipientIds.map((recipientId) => ({
                 recipientId,
                 title: request.title!.trim(),
                 content: request.content!.trim(),

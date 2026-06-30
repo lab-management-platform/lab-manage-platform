@@ -1,3 +1,4 @@
+import type { AppView } from "../../config/navigation";
 import { roleText } from "../../utils/helpers";
 import type { Actor, Project } from "../../types";
 
@@ -7,6 +8,7 @@ interface TopbarProps {
   selectedProjectId: string;
   unreadCount: number;
   onSelectProject: (projectId: string) => void;
+  onOpenView: (view: AppView) => void;
   onLogout: () => void;
 }
 
@@ -16,6 +18,7 @@ export function Topbar({
   selectedProjectId,
   unreadCount,
   onSelectProject,
+  onOpenView,
   onLogout
 }: TopbarProps) {
   const activeProject = projects.find((project) => project.id === selectedProjectId);
@@ -73,7 +76,7 @@ export function Topbar({
       <div className="topbar-actions">
         <div className="topbar-meta">
           <small>{now}</small>
-          <button type="button" className="icon-chip">
+          <button type="button" className="icon-chip" onClick={() => onOpenView("meetings")}>
             <span aria-hidden="true">◔</span>
             {unreadCount > 0 ? <b>{unreadCount}</b> : null}
           </button>

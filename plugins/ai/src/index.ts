@@ -38,6 +38,9 @@ interface KnowledgeDocument {
   content: string;
   category: string;
   tags: string[];
+  sourceFileName?: string;
+  sourceMimeType?: string;
+  sourceImportMethod?: "manual" | "upload";
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -48,6 +51,9 @@ interface KnowledgeCreateRequest {
   content: string;
   category?: string;
   tags?: string[];
+  sourceFileName?: string;
+  sourceMimeType?: string;
+  sourceImportMethod?: "manual" | "upload";
 }
 
 interface KnowledgeUpdateRequest {
@@ -55,6 +61,9 @@ interface KnowledgeUpdateRequest {
   content?: string;
   category?: string;
   tags?: string[];
+  sourceFileName?: string;
+  sourceMimeType?: string;
+  sourceImportMethod?: "manual" | "upload";
 }
 
 interface KnowledgeUploadRequest {
@@ -412,6 +421,9 @@ class PostgresKnowledgeRepository implements KnowledgeRepository {
         content TEXT NOT NULL,
         category TEXT NOT NULL DEFAULT 'general',
         tags TEXT[] NOT NULL DEFAULT '{}',
+        source_file_name TEXT,
+        source_mime_type TEXT,
+        source_import_method TEXT NOT NULL DEFAULT 'manual',
         created_by TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -433,6 +445,13 @@ class PostgresKnowledgeRepository implements KnowledgeRepository {
         category TEXT NOT NULL DEFAULT 'general',
         sort_order INTEGER NOT NULL DEFAULT 0
       );
+    `);
+
+    await this.pool.query(`
+      ALTER TABLE ai.knowledge_document
+        ADD COLUMN IF NOT EXISTS source_file_name TEXT,
+        ADD COLUMN IF NOT EXISTS source_mime_type TEXT,
+        ADD COLUMN IF NOT EXISTS source_import_method TEXT NOT NULL DEFAULT 'manual';
     `);
 
     // Try pgvector extension; if installed, use native vector type, else TEXT fallback
@@ -585,8 +604,11 @@ class PostgresKnowledgeRepository implements KnowledgeRepository {
   async create(input: KnowledgeCreateRequest & { createdBy: string }): Promise<KnowledgeDocument> {
     const id = randomUUID();
     const result = await this.pool.query(
-      `INSERT INTO ai.knowledge_document (id, title, content, category, tags, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO ai.knowledge_document (
+        id, title, content, category, tags, source_file_name, source_mime_type,
+        source_import_method, created_by
+      )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         id,
@@ -594,6 +616,9 @@ class PostgresKnowledgeRepository implements KnowledgeRepository {
         input.content,
         input.category ?? "general",
         input.tags ?? [],
+        input.sourceFileName ?? null,
+        input.sourceMimeType ?? null,
+        input.sourceImportMethod ?? "manual",
         input.createdBy
       ]
     );
@@ -615,13 +640,18 @@ class PostgresKnowledgeRepository implements KnowledgeRepository {
     const content = input.content ?? existing.rows[0].content;
     const category = input.category ?? existing.rows[0].category;
     const tags = input.tags ?? existing.rows[0].tags;
+    const sourceFileName = input.sourceFileName ?? existing.rows[0].source_file_name;
+    const sourceMimeType = input.sourceMimeType ?? existing.rows[0].source_mime_type;
+    const sourceImportMethod =
+      input.sourceImportMethod ?? existing.rows[0].source_import_method ?? "manual";
 
     const result = await this.pool.query(
       `UPDATE ai.knowledge_document
-       SET title = $2, content = $3, category = $4, tags = $5, updated_at = now()
+       SET title = $2, content = $3, category = $4, tags = $5, source_file_name = $6,
+           source_mime_type = $7, source_import_method = $8, updated_at = now()
        WHERE id = $1
        RETURNING *`,
-      [id, title, content, category, tags]
+      [id, title, content, category, tags, sourceFileName, sourceMimeType, sourceImportMethod]
     );
     return mapKnowledgeRow(result.rows[0]);
   }
@@ -799,6 +829,9 @@ function mapKnowledgeRow(row: any | { [key: string]: unknown }): KnowledgeDocume
     content: String(row.content),
     category: String(row.category),
     tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
+    sourceFileName: row.source_file_name ? String(row.source_file_name) : undefined,
+    sourceMimeType: row.source_mime_type ? String(row.source_mime_type) : undefined,
+    sourceImportMethod: row.source_import_method === "upload" ? "upload" : ("manual" as const),
     createdBy: String(row.created_by),
     createdAt: new Date(String(row.created_at)).toISOString(),
     updatedAt: new Date(String(row.updated_at)).toISOString()
@@ -1416,6 +1449,9 @@ export const aiPlugin: PluginManifest = {
               content: input.content,
               category: input.category,
               tags: input.tags,
+              sourceFileName: input.sourceFileName,
+              sourceMimeType: input.sourceMimeType,
+              sourceImportMethod: input.sourceImportMethod,
               createdBy: actor.id
             });
 
@@ -1501,6 +1537,9 @@ export const aiPlugin: PluginManifest = {
               content: input.content.trim(),
               category: input.category ?? "general",
               tags: input.tags ?? [],
+              sourceFileName: input.fileName?.trim() || undefined,
+              sourceMimeType: input.mimeType?.trim() || undefined,
+              sourceImportMethod: "upload",
               createdBy: actor.id
             });
 

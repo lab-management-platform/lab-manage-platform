@@ -6,13 +6,30 @@ type FileCategory = "sop" | "template" | "record" | "dataset" | "meeting" | "oth
 type FileNodeType = "folder" | "file";
 type FileVisibility = "public" | "group" | "private";
 type StorageProvider = "database" | "synology" | "external_link";
+type FileKind =
+  | "project_tree"
+  | "report_doc"
+  | "report_ppt"
+  | "experiment_record"
+  | "design_doc"
+  | "api_doc"
+  | "code_snapshot"
+  | "dataset"
+  | "model_weight"
+  | "meeting_minutes"
+  | "other";
 
 interface LabFile {
   id: string;
   nodeType: FileNodeType;
   title: string;
   category: FileCategory;
+  fileKind?: FileKind;
   parentId?: string;
+  projectId?: string;
+  reportId?: string;
+  nasPath?: string;
+  isRequired?: boolean;
   tags: string[];
   visibility: FileVisibility;
   storageProvider: StorageProvider;
@@ -48,7 +65,12 @@ interface FileCreateRequest {
   nodeType?: FileNodeType;
   title: string;
   category: FileCategory;
+  fileKind?: FileKind;
   parentId?: string;
+  projectId?: string;
+  reportId?: string;
+  nasPath?: string;
+  isRequired?: boolean;
   tags?: string[];
   visibility?: FileVisibility;
   driveUrl?: string;
@@ -70,7 +92,10 @@ interface FileVersionRequest {
 
 interface FileRepository {
   initialize(): Promise<void>;
-  listFiles(actor: Actor, filters: { search?: string; parentId?: string }): Promise<LabFile[]>;
+  listFiles(
+    actor: Actor,
+    filters: { search?: string; parentId?: string; projectId?: string }
+  ): Promise<LabFile[]>;
   createFile(input: Omit<LabFile, "id" | "createdAt" | "updatedAt">): Promise<LabFile>;
   addVersion(
     fileId: string,
@@ -108,7 +133,7 @@ const seedFiles: LabFile[] = [
     visibility: "public",
     storageProvider: "synology",
     driveUrl: "https://synology-drive.example.local/safety-training",
-    description: "Synology Drive 链接占位，部署后替换为真实 NAS 共享链接。",
+    description: "实验室安全培训资料，当前通过 Synology Drive 共享访问。",
     ownerId: "u-admin",
     ownerName: "实验室管理员",
     currentVersion: 1,
@@ -147,13 +172,15 @@ class MemoryFileRepository implements FileRepository {
 
   async listFiles(
     actor: Actor,
-    filters: { search?: string; parentId?: string }
+    filters: { search?: string; parentId?: string; projectId?: string }
   ): Promise<LabFile[]> {
     const keyword = filters.search?.trim().toLowerCase() ?? "";
     const parentId = filters.parentId?.trim();
+    const projectId = filters.projectId?.trim();
     return this.files
       .filter((file) => canReadFile(file, actor))
       .filter((file) => (parentId === undefined ? true : (file.parentId ?? "") === parentId))
+      .filter((file) => (projectId === undefined ? true : (file.projectId ?? "") === projectId))
       .filter((file) =>
         [file.title, file.category, file.description, file.tags.join(" "), file.ownerName].some(
           (value) => value.toLowerCase().includes(keyword)
@@ -257,7 +284,12 @@ class PostgresFileRepository implements FileRepository {
         node_type TEXT NOT NULL DEFAULT 'file' CHECK (node_type IN ('folder', 'file')),
         title TEXT NOT NULL,
         category TEXT NOT NULL CHECK (category IN ('sop', 'template', 'record', 'dataset', 'meeting', 'other')),
+        file_kind TEXT,
         parent_id TEXT REFERENCES files.lab_file(id),
+        project_id TEXT,
+        report_id TEXT,
+        nas_path TEXT,
+        is_required BOOLEAN NOT NULL DEFAULT false,
         tags TEXT[] NOT NULL DEFAULT '{}',
         visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'group', 'private')),
         storage_provider TEXT NOT NULL DEFAULT 'external_link' CHECK (storage_provider IN ('database', 'synology', 'external_link')),
@@ -276,6 +308,10 @@ class PostgresFileRepository implements FileRepository {
 
       ALTER TABLE files.lab_file ADD COLUMN IF NOT EXISTS node_type TEXT NOT NULL DEFAULT 'file';
       ALTER TABLE files.lab_file ADD COLUMN IF NOT EXISTS parent_id TEXT;
+      ALTER TABLE files.lab_file ADD COLUMN IF NOT EXISTS file_kind TEXT;
+      ALTER TABLE files.lab_file ADD COLUMN IF NOT EXISTS report_id TEXT;
+      ALTER TABLE files.lab_file ADD COLUMN IF NOT EXISTS nas_path TEXT;
+      ALTER TABLE files.lab_file ADD COLUMN IF NOT EXISTS is_required BOOLEAN NOT NULL DEFAULT false;
       ALTER TABLE files.lab_file ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
       ALTER TABLE files.lab_file ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'public';
       ALTER TABLE files.lab_file ADD COLUMN IF NOT EXISTS storage_provider TEXT NOT NULL DEFAULT 'external_link';
@@ -330,16 +366,21 @@ class PostgresFileRepository implements FileRepository {
       for (const file of seedFiles) {
         await this.pool.query(
           `INSERT INTO files.lab_file
-            (id, node_type, title, category, parent_id, tags, visibility, storage_provider,
+            (id, node_type, title, category, file_kind, parent_id, project_id, report_id, nas_path, is_required, tags, visibility, storage_provider,
              drive_url, description, owner_id, owner_name, current_version, latest_version_id,
              original_name, mime_type, size_bytes, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
           [
             file.id,
             file.nodeType,
             file.title,
             file.category,
+            file.fileKind ?? null,
             file.parentId ?? null,
+            file.projectId ?? null,
+            file.reportId ?? null,
+            file.nasPath ?? null,
+            file.isRequired ?? false,
             file.tags,
             file.visibility,
             file.storageProvider,
@@ -385,15 +426,17 @@ class PostgresFileRepository implements FileRepository {
 
   async listFiles(
     actor: Actor,
-    filters: { search?: string; parentId?: string }
+    filters: { search?: string; parentId?: string; projectId?: string }
   ): Promise<LabFile[]> {
     const keyword = `%${filters.search?.trim() ?? ""}%`;
     const parentId = filters.parentId?.trim() || null;
+    const projectId = filters.projectId?.trim() || null;
     const result = await this.pool.query(
       `SELECT *
        FROM files.lab_file
        WHERE (visibility <> 'private' OR owner_id = $3)
          AND (($2::text IS NULL) OR COALESCE(parent_id, '') = $2)
+         AND (($4::text IS NULL) OR COALESCE(project_id, '') = $4)
          AND (
           $1 = '%%'
           OR title ILIKE $1
@@ -404,7 +447,7 @@ class PostgresFileRepository implements FileRepository {
          )
        ORDER BY node_type ASC, updated_at DESC
        LIMIT 300`,
-      [keyword, parentId, actor.id]
+      [keyword, parentId, actor.id, projectId]
     );
     return result.rows.map(mapFileRow);
   }
@@ -412,17 +455,22 @@ class PostgresFileRepository implements FileRepository {
   async createFile(input: Omit<LabFile, "id" | "createdAt" | "updatedAt">): Promise<LabFile> {
     const result = await this.pool.query(
       `INSERT INTO files.lab_file
-        (id, node_type, title, category, parent_id, tags, visibility, storage_provider,
+        (id, node_type, title, category, file_kind, parent_id, project_id, report_id, nas_path, is_required, tags, visibility, storage_provider,
          drive_url, description, owner_id, owner_name, current_version, latest_version_id,
          original_name, mime_type, size_bytes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
        RETURNING *`,
       [
         randomUUID(),
         input.nodeType,
         input.title,
         input.category,
+        input.fileKind ?? null,
         input.parentId ?? null,
+        input.projectId ?? null,
+        input.reportId ?? null,
+        input.nasPath ?? null,
+        input.isRequired ?? false,
         input.tags,
         input.visibility,
         input.storageProvider,
@@ -555,7 +603,12 @@ function mapFileRow(row: Record<string, unknown>): LabFile {
     nodeType: row.node_type as FileNodeType,
     title: String(row.title),
     category: row.category as FileCategory,
+    fileKind: row.file_kind ? (row.file_kind as FileKind) : undefined,
     parentId: row.parent_id ? String(row.parent_id) : undefined,
+    projectId: row.project_id ? String(row.project_id) : undefined,
+    reportId: row.report_id ? String(row.report_id) : undefined,
+    nasPath: row.nas_path ? String(row.nas_path) : undefined,
+    isRequired: Boolean(row.is_required),
     tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
     visibility: row.visibility as FileVisibility,
     storageProvider: row.storage_provider as StorageProvider,
@@ -634,6 +687,24 @@ function validateCreateRequest(request: Partial<FileCreateRequest>): string | nu
   ) {
     return "category must be sop, template, record, dataset, meeting or other";
   }
+  if (
+    request.fileKind &&
+    ![
+      "project_tree",
+      "report_doc",
+      "report_ppt",
+      "experiment_record",
+      "design_doc",
+      "api_doc",
+      "code_snapshot",
+      "dataset",
+      "model_weight",
+      "meeting_minutes",
+      "other"
+    ].includes(request.fileKind)
+  ) {
+    return "invalid fileKind";
+  }
   if (request.visibility && !["public", "group", "private"].includes(request.visibility)) {
     return "visibility must be public, group or private";
   }
@@ -683,6 +754,18 @@ export const filesPlugin: PluginManifest = {
     { method: "POST", path: "/files", permission: "file:write", summary: "创建文件或文件夹" },
     {
       method: "GET",
+      path: "/projects/:id/files",
+      permission: "project:read",
+      summary: "查询项目资料"
+    },
+    {
+      method: "POST",
+      path: "/projects/:id/files",
+      permission: "project:read",
+      summary: "上传项目资料"
+    },
+    {
+      method: "GET",
       path: "/files/:id/versions",
       permission: "file:read",
       summary: "查询文件版本"
@@ -718,11 +801,16 @@ export const filesPlugin: PluginManifest = {
             if (!actor) {
               return { status: 401, body: { error: "Unauthorized" } };
             }
-            const params = query as Partial<{ search: string; parentId: string }>;
+            const params = query as Partial<{
+              search: string;
+              parentId: string;
+              projectId: string;
+            }>;
             return {
               body: await repository.listFiles(actor, {
                 search: params.search,
-                parentId: params.parentId
+                parentId: params.parentId,
+                projectId: params.projectId
               })
             };
           }
@@ -801,6 +889,86 @@ export const filesPlugin: PluginManifest = {
               source: "files",
               payload: { fileId: file.id, nodeType: file.nodeType, title: file.title }
             });
+
+            return { status: 201, body: file };
+          }
+        },
+        {
+          method: "GET",
+          path: "/projects/:id/files",
+          permission: "project:read",
+          summary: "查询项目资料",
+          handler: async ({ actor, params, query }) => {
+            if (!actor) {
+              return { status: 401, body: { error: "Unauthorized" } };
+            }
+            const request = query as Partial<{ search: string; parentId: string }>;
+            return {
+              body: await repository.listFiles(actor, {
+                search: request.search,
+                parentId: request.parentId,
+                projectId: params.id
+              })
+            };
+          }
+        },
+        {
+          method: "POST",
+          path: "/projects/:id/files",
+          permission: "project:read",
+          summary: "上传项目资料",
+          handler: async ({ actor, params, body }) => {
+            if (!actor) {
+              return { status: 401, body: { error: "Unauthorized" } };
+            }
+
+            const request = body as Partial<FileCreateRequest>;
+            const error = validateCreateRequest({ ...request, projectId: params.id });
+            if (error) {
+              return { status: 400, body: { error } };
+            }
+
+            const nodeType = request.nodeType ?? "file";
+            const file = await repository.createFile({
+              nodeType,
+              title: request.title!.trim(),
+              category: request.category!,
+              fileKind: request.fileKind,
+              parentId: request.parentId?.trim() || undefined,
+              projectId: params.id,
+              reportId: request.reportId?.trim() || undefined,
+              nasPath: request.nasPath?.trim() || undefined,
+              isRequired: request.isRequired ?? false,
+              tags: normalizeTags(request.tags),
+              visibility: request.visibility ?? "group",
+              storageProvider: request.contentBase64
+                ? "database"
+                : request.driveUrl
+                  ? "synology"
+                  : "external_link",
+              driveUrl: request.driveUrl?.trim(),
+              description: request.description?.trim() || "项目资料上传",
+              ownerId: actor.id,
+              ownerName: actor.displayName ?? actor.username ?? actor.id,
+              currentVersion: 0,
+              latestVersionId: undefined,
+              originalName: request.originalName,
+              mimeType: request.mimeType,
+              sizeBytes: request.sizeBytes
+            });
+
+            if (nodeType === "file") {
+              await repository.addVersion(file.id, {
+                originalName: request.originalName ?? `${file.title}.link`,
+                mimeType: request.mimeType ?? "text/uri-list",
+                sizeBytes: request.sizeBytes ?? 0,
+                contentBase64: request.contentBase64,
+                driveUrl: request.driveUrl,
+                changeNote: "项目资料初始版本",
+                uploaderId: actor.id,
+                uploaderName: actor.displayName ?? actor.username ?? actor.id
+              });
+            }
 
             return { status: 201, body: file };
           }

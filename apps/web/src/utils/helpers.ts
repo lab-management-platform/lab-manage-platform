@@ -1,7 +1,9 @@
 import type {
   ApplicationStatus,
   FileCategory,
+  FileKind,
   FileVisibility,
+  IdentityType,
   MeetingStatus,
   NotificationType,
   Permission,
@@ -30,13 +32,43 @@ export function statusText(status: ApplicationStatus) {
   )[status];
 }
 
+export function projectStatusText(status: "pending" | "active" | "archived" | "completed") {
+  return (
+    {
+      pending: "待审批",
+      active: "进行中",
+      archived: "已归档",
+      completed: "已完成"
+    } as const
+  )[status];
+}
+
+export function memberRoleText(role: "owner" | "leader" | "member" | "advisor" | "observer") {
+  return (
+    {
+      owner: "学生负责人",
+      leader: "组内负责人",
+      member: "成员",
+      advisor: "导师",
+      observer: "观察者"
+    } as const
+  )[role];
+}
+
 export function roleText(role: Role): string {
   const map: Record<Role, string> = {
     student: "学生",
     professor: "教授",
-    lab_admin: "实验室管理员"
+    lab_admin: "实验室管理员",
+    member: "普通成员",
+    admin: "平台管理员",
+    super_admin: "超级管理员"
   };
   return map[role];
+}
+
+export function identityTypeText(identityType: IdentityType): string {
+  return identityType === "student_no" ? "学号" : "工号";
 }
 
 export function fileCategoryText(category: FileCategory): string {
@@ -58,6 +90,34 @@ export function visibilityText(visibility: FileVisibility): string {
     private: "仅自己可见"
   };
   return map[visibility];
+}
+
+export function fileKindText(fileKind: FileKind) {
+  return (
+    {
+      project_tree: "项目树",
+      report_doc: "汇报文档",
+      report_ppt: "汇报 PPT",
+      experiment_record: "实验记录",
+      design_doc: "设计文档",
+      api_doc: "接口文档",
+      code_snapshot: "代码快照",
+      dataset: "数据集",
+      model_weight: "模型权重",
+      meeting_minutes: "会议纪要",
+      other: "其他"
+    } as const
+  )[fileKind];
+}
+
+export function treeStatusText(status: "todo" | "doing" | "done") {
+  return (
+    {
+      todo: "未开始",
+      doing: "进行中",
+      done: "已完成"
+    } as const
+  )[status];
 }
 
 export function meetingStatusText(status: MeetingStatus): string {
@@ -146,5 +206,47 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "project:read",
     "meeting:read",
     "ai:use"
+  ],
+  member: [
+    "inventory:read",
+    "inventory:apply",
+    "file:read",
+    "project:read",
+    "meeting:read",
+    "ai:use"
+  ],
+  admin: [
+    "user:read",
+    "user:write",
+    "inventory:read",
+    "inventory:apply",
+    "inventory:approve",
+    "inventory:stock",
+    "file:read",
+    "file:write",
+    "project:read",
+    "project:write",
+    "project:progress",
+    "meeting:read",
+    "meeting:write",
+    "ai:use",
+    "ai:manage"
+  ],
+  super_admin: [
+    "user:read",
+    "user:write",
+    "inventory:read",
+    "inventory:apply",
+    "inventory:approve",
+    "inventory:stock",
+    "file:read",
+    "file:write",
+    "project:read",
+    "project:write",
+    "project:progress",
+    "meeting:read",
+    "meeting:write",
+    "ai:use",
+    "ai:manage"
   ]
 };

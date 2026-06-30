@@ -1,4 +1,5 @@
-export type Role = "student" | "professor" | "lab_admin";
+export type Role = "student" | "professor" | "lab_admin" | "member" | "admin" | "super_admin";
+export type IdentityType = "student_no" | "employee_no";
 
 export type Permission =
   | "user:read"
@@ -77,7 +78,8 @@ export interface Summary {
 export interface ManagedUser {
   id: string;
   username: string;
-  studentId?: string;
+  identityType: IdentityType;
+  identityNo: string;
   phone?: string;
   displayName: string;
   role: Role;
@@ -90,6 +92,18 @@ export type FileCategory = "sop" | "template" | "record" | "dataset" | "meeting"
 export type FileNodeType = "folder" | "file";
 export type FileVisibility = "public" | "group" | "private";
 export type StorageProvider = "database" | "synology" | "external_link";
+export type FileKind =
+  | "project_tree"
+  | "report_doc"
+  | "report_ppt"
+  | "experiment_record"
+  | "design_doc"
+  | "api_doc"
+  | "code_snapshot"
+  | "dataset"
+  | "model_weight"
+  | "meeting_minutes"
+  | "other";
 export type MeetingStatus = "scheduled" | "completed" | "cancelled";
 export type NotificationType = "announcement" | "meeting" | "approval" | "task" | "system";
 
@@ -98,7 +112,12 @@ export interface LabFile {
   nodeType: FileNodeType;
   title: string;
   category: FileCategory;
+  fileKind?: FileKind;
   parentId?: string;
+  projectId?: string;
+  reportId?: string;
+  nasPath?: string;
+  isRequired?: boolean;
   tags: string[];
   visibility: FileVisibility;
   storageProvider: StorageProvider;
@@ -132,6 +151,7 @@ export interface FileVersion {
 
 export interface Meeting {
   id: string;
+  projectId?: string;
   title: string;
   startsAt: string;
   endsAt: string;
@@ -183,6 +203,9 @@ export interface KnowledgeDocument {
   content: string;
   category: string;
   tags: string[];
+  sourceFileName?: string;
+  sourceMimeType?: string;
+  sourceImportMethod?: "manual" | "upload";
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -207,11 +230,18 @@ export interface Project {
   id: string;
   name: string;
   description: string;
-  ownerId: string;
+  ownerUserId: string;
   ownerName: string;
+  ownerIdentityNo: string;
+  advisorUserId?: string;
+  advisorName?: string;
+  advisorIdentityNo?: string;
   startsAt?: string;
   endsAt?: string;
   status: ProjectStatus;
+  reportCycleDays: number;
+  lastReportAt?: string;
+  nextReportDueAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -223,6 +253,10 @@ export interface ProjectTask {
   description: string;
   assigneeId?: string;
   assigneeName?: string;
+  assigneeIdentityNo?: string;
+  creatorUserId?: string;
+  reviewerUserId?: string;
+  treeNodeId?: string;
   priority: TaskPriority;
   status: TaskStatus;
   dueDate?: string;
@@ -234,8 +268,10 @@ export interface ProjectTask {
 export interface ProjectMember {
   projectId: string;
   userId: string;
-  userName?: string;
-  memberRole: "leader" | "member" | "advisor" | "manager";
+  userName: string;
+  identityType: IdentityType;
+  identityNo: string;
+  memberRole: "owner" | "leader" | "member" | "advisor" | "observer";
   joinedAt: string;
 }
 
@@ -246,6 +282,56 @@ export interface ProgressReport {
   authorName: string;
   title: string;
   content: string;
+  treeSnapshotId?: string;
+  summary?: string;
+  nextPlan?: string;
+  helpNeeded?: string;
+  status?: "draft" | "submitted" | "reviewed" | "archived";
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProjectReportMemberWork {
+  id: string;
+  reportId: string;
+  userId?: string;
+  memberName: string;
+  memberIdentityNo?: string;
+  workSummary: string;
+  progressStatus: TreeNodeStatus;
+  createdAt: string;
+}
+
+export interface ProjectReportDetail extends ProgressReport {
+  memberWork: ProjectReportMemberWork[];
+  treeSnapshot?: ProjectTreeSnapshot;
+}
+
+export type TreeNodeStatus = "todo" | "doing" | "done";
+
+export interface ProjectTreeNode {
+  id: string;
+  projectId: string;
+  parentId?: string;
+  title: string;
+  status: TreeNodeStatus;
+  sortOrder: number;
+  ownerUserId?: string;
+  ownerName?: string;
+  ownerIdentityNo?: string;
+  remark?: string;
+  deliverableNote?: string;
+  collapsed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectTreeSnapshot {
+  id: string;
+  projectId: string;
+  version: number;
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  nodes: ProjectTreeNode[];
 }

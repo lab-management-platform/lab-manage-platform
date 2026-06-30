@@ -18,7 +18,10 @@ import type {
   ProgressReport,
   Project,
   ProjectMember,
+  ProjectReportDetail,
   ProjectTask,
+  ProjectTreeSnapshot,
+  ProjectTreeNode,
   StockMovement,
   Summary
 } from "../types";
@@ -58,6 +61,9 @@ export function useLabData(token: string, actor: Actor | null) {
   const [projectTasks, setProjectTasks] = useState<ProjectTask[]>([]);
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
   const [progressReports, setProgressReports] = useState<ProgressReport[]>([]);
+  const [projectTree, setProjectTree] = useState<ProjectTreeNode[]>([]);
+  const [projectTreeSnapshots, setProjectTreeSnapshots] = useState<ProjectTreeSnapshot[]>([]);
+  const [projectReportDetail, setProjectReportDetail] = useState<ProjectReportDetail | null>(null);
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
   const [aiSources, setAiSources] = useState<KnowledgeSource[]>([]);
   const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeDocument[]>([]);
@@ -141,11 +147,14 @@ export function useLabData(token: string, actor: Actor | null) {
       setProjectTasks([]);
       setProjectMembers([]);
       setProgressReports([]);
+      setProjectTree([]);
+      setProjectTreeSnapshots([]);
+      setProjectReportDetail(null);
       return;
     }
 
     const headers = toAuthorization(token);
-    const [tasksData, membersData, progressData] = await Promise.all([
+    const [tasksData, membersData, progressData, treeData, treeHistoryData] = await Promise.all([
       fetch(`${apiBase}/projects/${projectId}/tasks`, { headers }).then(
         parseResponse<ProjectTask[]>
       ),
@@ -154,12 +163,21 @@ export function useLabData(token: string, actor: Actor | null) {
       ),
       fetch(`${apiBase}/projects/${projectId}/progress`, { headers }).then(
         parseResponse<ProgressReport[]>
+      ),
+      fetch(`${apiBase}/projects/${projectId}/tree`, { headers }).then(
+        parseResponse<ProjectTreeNode[]>
+      ),
+      fetch(`${apiBase}/projects/${projectId}/tree/history`, { headers }).then(
+        parseResponse<ProjectTreeSnapshot[]>
       )
     ]);
 
     setProjectTasks(tasksData);
     setProjectMembers(membersData);
     setProgressReports(progressData);
+    setProjectTree(treeData);
+    setProjectTreeSnapshots(treeHistoryData);
+    setProjectReportDetail(null);
   }
 
   useEffect(() => {
@@ -211,6 +229,9 @@ export function useLabData(token: string, actor: Actor | null) {
     projectTasks,
     projectMembers,
     progressReports,
+    projectTree,
+    projectTreeSnapshots,
+    projectReportDetail,
     aiMessages,
     aiLoading,
     aiError,
@@ -225,6 +246,72 @@ export function useLabData(token: string, actor: Actor | null) {
         headers: toAuthorization(token)
       }).then(parseResponse<FileVersion[]>);
       setFileVersions(payload);
+    },
+    async createProjectFile(payload: {
+      projectId: string;
+      title: string;
+      category: "record" | "dataset" | "meeting" | "other" | "template" | "sop";
+      fileKind:
+        | "project_tree"
+        | "report_doc"
+        | "report_ppt"
+        | "experiment_record"
+        | "design_doc"
+        | "api_doc"
+        | "code_snapshot"
+        | "dataset"
+        | "model_weight"
+        | "meeting_minutes"
+        | "other";
+      description: string;
+      driveUrl?: string;
+      nasPath?: string;
+      originalName?: string;
+      mimeType?: string;
+      sizeBytes?: number;
+      contentBase64?: string;
+    }) {
+      if (!token) return;
+      await fetch(`${apiBase}/projects/${payload.projectId}/files`, {
+        method: "POST",
+        headers: toAuthorization(token),
+        body: JSON.stringify({
+          title: payload.title,
+          category: payload.category,
+          fileKind: payload.fileKind,
+          description: payload.description,
+          driveUrl: payload.driveUrl,
+          nasPath: payload.nasPath,
+          originalName: payload.originalName,
+          mimeType: payload.mimeType,
+          sizeBytes: payload.sizeBytes,
+          contentBase64: payload.contentBase64
+        })
+      }).then(parseResponse<LabFile>);
+      setMessage("项目资料已上传。");
+      await refreshAll();
+    },
+    async addFileVersion(payload: {
+      fileId: string;
+      originalName: string;
+      mimeType: string;
+      sizeBytes: number;
+      driveUrl?: string;
+      changeNote?: string;
+      contentBase64?: string;
+    }) {
+      if (!token) return;
+      await fetch(`${apiBase}/files/${payload.fileId}/versions`, {
+        method: "POST",
+        headers: toAuthorization(token),
+        body: JSON.stringify(payload)
+      }).then(parseResponse<FileVersion>);
+      setMessage("文件新版本已登记。");
+      const versionsPayload = await fetch(`${apiBase}/files/${payload.fileId}/versions`, {
+        headers: toAuthorization(token)
+      }).then(parseResponse<FileVersion[]>);
+      setFileVersions(versionsPayload);
+      await refreshAll();
     },
     async submitApplication(payload: {
       materialId: string;
@@ -277,6 +364,7 @@ export function useLabData(token: string, actor: Actor | null) {
       }
     },
     async createMeeting(payload: {
+      projectId?: string;
       title: string;
       startsAt: string;
       endsAt: string;
@@ -303,7 +391,7 @@ export function useLabData(token: string, actor: Actor | null) {
         setLoading(false);
       }
     },
-    async publishAnnouncement(payload: { title: string; content: string }) {
+    async publishAnnouncement(payload: { title: string; content: string; projectId?: string }) {
       if (!token) return;
       setLoading(true);
       try {
@@ -311,7 +399,7 @@ export function useLabData(token: string, actor: Actor | null) {
           method: "POST",
           headers: toAuthorization(token),
           body: JSON.stringify(payload)
-        }).then(parseResponse<NotificationItem>);
+        }).then(parseResponse<NotificationItem[]>);
         setMessage("公告已发布。");
         await refreshAll();
       } finally {
@@ -320,11 +408,18 @@ export function useLabData(token: string, actor: Actor | null) {
     },
     async markNotificationRead(notificationId: string) {
       if (!token) return;
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === notificationId
+            ? { ...item, readAt: item.readAt ?? new Date().toISOString() }
+            : item
+        )
+      );
       await fetch(`${apiBase}/notifications/${notificationId}/read`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` }
       }).then(parseResponse<NotificationItem>);
-      await refreshAll();
+      setMessage("通知已标记为已读。");
     },
     async sendAiMessage(messageText: string) {
       const trimmed = messageText.trim();
@@ -372,6 +467,23 @@ export function useLabData(token: string, actor: Actor | null) {
       setMessage("知识文档已添加。");
       await refreshAll();
     },
+    async uploadKnowledgeFile(payload: {
+      title: string;
+      content: string;
+      category: string;
+      tags: string[];
+      fileName?: string;
+      mimeType?: string;
+    }) {
+      if (!token) return;
+      await fetch(`${apiBase}/ai/knowledge/upload`, {
+        method: "POST",
+        headers: toAuthorization(token),
+        body: JSON.stringify(payload)
+      }).then(parseResponse<KnowledgeDocument>);
+      setMessage("知识文件已收录。");
+      await refreshAll();
+    },
     async deleteKnowledge(id: string) {
       if (!token) return;
       await fetch(`${apiBase}/ai/knowledge/${id}`, {
@@ -381,15 +493,26 @@ export function useLabData(token: string, actor: Actor | null) {
       setMessage("知识文档已删除。");
       await refreshAll();
     },
-    async createProject(payload: { name: string; description: string }) {
+    async createProject(payload: {
+      name: string;
+      description: string;
+      ownerName?: string;
+      ownerIdentityNo?: string;
+      ownerUserId?: string;
+      advisorName?: string;
+      advisorIdentityNo?: string;
+      advisorUserId?: string;
+      reportCycleDays?: number;
+    }) {
       if (!token) return;
-      await fetch(`${apiBase}/projects`, {
+      const project = await fetch(`${apiBase}/projects`, {
         method: "POST",
         headers: toAuthorization(token),
         body: JSON.stringify(payload)
       }).then(parseResponse<Project>);
       setMessage("项目已创建。");
       await refreshAll();
+      await loadProjectWorkspace(project.id);
     },
     async approveProject(projectId: string) {
       if (!token) return;
@@ -431,6 +554,71 @@ export function useLabData(token: string, actor: Actor | null) {
       setMessage("任务已完成。");
       await loadProjectWorkspace(projectId);
     },
+    async addProjectMember(
+      projectId: string,
+      payload: { userName: string; identityNo: string; memberRole: string }
+    ) {
+      if (!token) return;
+      await fetch(`${apiBase}/projects/${projectId}/members`, {
+        method: "POST",
+        headers: toAuthorization(token),
+        body: JSON.stringify(payload)
+      }).then(parseResponse<ProjectMember[]>);
+      setMessage("项目成员已添加。");
+      await loadProjectWorkspace(projectId);
+    },
+    async updateProjectMember(projectId: string, userId: string, memberRole: string) {
+      if (!token) return;
+      await fetch(`${apiBase}/projects/${projectId}/members/${userId}`, {
+        method: "PATCH",
+        headers: toAuthorization(token),
+        body: JSON.stringify({ memberRole })
+      }).then(parseResponse<ProjectMember[]>);
+      setMessage("成员角色已更新。");
+      await loadProjectWorkspace(projectId);
+    },
+    async removeProjectMember(projectId: string, userId: string) {
+      if (!token) return;
+      await fetch(`${apiBase}/projects/${projectId}/members/${userId}`, {
+        method: "DELETE",
+        headers: toAuthorization(token)
+      }).then(parseResponse<{ ok: true }>);
+      setMessage("项目成员已移除。");
+      await loadProjectWorkspace(projectId);
+    },
+    async saveProjectTree(
+      projectId: string,
+      nodes: Array<{
+        id?: string;
+        parentId?: string;
+        title: string;
+        status: "todo" | "doing" | "done";
+        sortOrder?: number;
+        ownerUserId?: string;
+        remark?: string;
+        deliverableNote?: string;
+        collapsed?: boolean;
+      }>
+    ) {
+      if (!token) return;
+      const payload = await fetch(`${apiBase}/projects/${projectId}/tree`, {
+        method: "PUT",
+        headers: toAuthorization(token),
+        body: JSON.stringify({ nodes })
+      }).then(parseResponse<ProjectTreeNode[]>);
+      setProjectTree(payload);
+      setMessage("项目树已保存。");
+      await loadProjectWorkspace(projectId);
+    },
+    async createProjectTreeSnapshot(projectId: string) {
+      if (!token) return;
+      const snapshot = await fetch(`${apiBase}/projects/${projectId}/tree/snapshot`, {
+        method: "POST",
+        headers: toAuthorization(token)
+      }).then(parseResponse<ProjectTreeSnapshot>);
+      setProjectTreeSnapshots((current) => [snapshot, ...current]);
+      setMessage(`已生成快照 v${snapshot.version}，包含 ${snapshot.nodes.length} 个节点。`);
+    },
     async createProgress(payload: { projectId: string; title: string; content: string }) {
       if (!token) return;
       await fetch(`${apiBase}/projects/${payload.projectId}/progress`, {
@@ -440,6 +628,37 @@ export function useLabData(token: string, actor: Actor | null) {
       }).then(parseResponse<ProgressReport>);
       setMessage("进度纪要已提交。");
       await loadProjectWorkspace(payload.projectId);
+    },
+    async createProjectReport(payload: {
+      projectId: string;
+      title: string;
+      content: string;
+      summary?: string;
+      nextPlan?: string;
+      helpNeeded?: string;
+      memberWork?: Array<{
+        userId?: string;
+        memberName: string;
+        memberIdentityNo?: string;
+        workSummary: string;
+        progressStatus: "todo" | "doing" | "done";
+      }>;
+    }) {
+      if (!token) return;
+      await fetch(`${apiBase}/projects/${payload.projectId}/reports`, {
+        method: "POST",
+        headers: toAuthorization(token),
+        body: JSON.stringify(payload)
+      }).then(parseResponse<ProgressReport>);
+      setMessage("结构化汇报已提交。");
+      await loadProjectWorkspace(payload.projectId);
+    },
+    async loadProjectReportDetail(projectId: string, reportId: string) {
+      if (!token) return;
+      const payload = await fetch(`${apiBase}/projects/${projectId}/reports/${reportId}`, {
+        headers: toAuthorization(token)
+      }).then(parseResponse<ProjectReportDetail>);
+      setProjectReportDetail(payload);
     },
     async updateContact(phone: string) {
       if (!token) return;
@@ -463,7 +682,8 @@ export function useLabData(token: string, actor: Actor | null) {
     async registerUser(payload: {
       username: string;
       password: string;
-      studentId: string;
+      identityType: "student_no" | "employee_no";
+      identityNo: string;
       displayName: string;
       role: Actor["role"];
     }) {

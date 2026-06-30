@@ -47,9 +47,10 @@ describe("api integration", () => {
       payload: {
         username: `api${suffix}`,
         password: "Student@123456",
-        studentId: `A${suffix}`,
+        identityType: "student_no",
+        identityNo: `A${suffix}`,
         displayName: `接口测试${suffix}`,
-        role: "member"
+        role: "student"
       }
     });
     expect(created.statusCode).toBe(201);
@@ -59,16 +60,16 @@ describe("api integration", () => {
       method: "PATCH",
       url: `/auth/users/${userId}/role`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { role: "admin" }
+      payload: { role: "professor" }
     });
     expect(roleChanged.statusCode).toBe(200);
-    expect(roleChanged.json<{ role: string }>().role).toBe("admin");
+    expect(roleChanged.json<{ role: string }>().role).toBe("professor");
 
     const roleRestored = await app.inject({
       method: "PATCH",
       url: `/auth/users/${userId}/role`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { role: "member" }
+      payload: { role: "student" }
     });
     expect(roleRestored.statusCode).toBe(200);
 
