@@ -8,8 +8,6 @@ import type {
   KnowledgeSource
 } from "../../types";
 
-// pdfjs worker 顶层静态导入，Vite 构建时即可解析，避免 Docker 容器内动态 ?url 解析失败
-import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 interface AiPageProps {
   actor: Actor;
@@ -51,7 +49,7 @@ async function readKnowledgeFile(file: File) {
     content = await file.text();
   } else if (mimeType === "application/pdf" || extension === "pdf") {
     const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
-    pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+    pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
     const buffer = await file.arrayBuffer();
     const pdf = await pdfjs.getDocument({ data: buffer }).promise;
     const chunks: string[] = [];

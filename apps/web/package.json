@@ -5,8 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -p tsconfig.json && vite build",
-    "build:web": "vite build",
+    "copy:pdf-worker": "node scripts/copy-pdf-worker.mjs",
+    "build": "node scripts/copy-pdf-worker.mjs && tsc -p tsconfig.json && vite build",
+    "build:web": "node scripts/copy-pdf-worker.mjs && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
