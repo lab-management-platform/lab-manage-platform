@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "node scripts/copy-pdf-worker.mjs && vite --host 0.0.0.0",
     "copy:pdf-worker": "node scripts/copy-pdf-worker.mjs",
     "build": "node scripts/copy-pdf-worker.mjs && tsc -p tsconfig.json && vite build",
     "build:web": "node scripts/copy-pdf-worker.mjs && vite build",

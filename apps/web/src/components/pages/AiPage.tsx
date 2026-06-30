@@ -8,7 +8,6 @@ import type {
   KnowledgeSource
 } from "../../types";
 
-
 interface AiPageProps {
   actor: Actor;
   messages: ChatMessage[];
@@ -48,7 +47,8 @@ async function readKnowledgeFile(file: File) {
   ) {
     content = await file.text();
   } else if (mimeType === "application/pdf" || extension === "pdf") {
-    const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
+    const pdfModulePath = "/pdf.mjs";
+    const pdfjs = await import(/* @vite-ignore */ pdfModulePath);
     pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
     const buffer = await file.arrayBuffer();
     const pdf = await pdfjs.getDocument({ data: buffer }).promise;

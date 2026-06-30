@@ -432,14 +432,14 @@ function createValidAbsoluteUrl(url, baseUrl = null, options = null) {
       if (options.tryConvertEncoding) {
         try {
           url = stringToUTF8String(url);
-        } catch {}
+        } catch { }
       }
     }
     const absoluteUrl = baseUrl ? new URL(url, baseUrl) : new URL(url);
     if (_isValidProtocol(absoluteUrl)) {
       return absoluteUrl;
     }
-  } catch {}
+  } catch { }
   return null;
 }
 function shadow(obj, prop, value, nonSerializable = false) {
@@ -839,7 +839,7 @@ function stringToPDFString(str) {
   for (let i = 0, ii = str.length; i < ii; i++) {
     const charCode = str.charCodeAt(i);
     if (charCode === 0x1b) {
-      while (++i < ii && str.charCodeAt(i) !== 0x1b) {}
+      while (++i < ii && str.charCodeAt(i) !== 0x1b) { }
       continue;
     }
     const code = PDFStringTranslateTable[charCode];
@@ -1118,7 +1118,7 @@ function getPdfFilenameFromUrl(url, defaultFilename = "document.pdf") {
     if (suggestedFilename.includes("%")) {
       try {
         suggestedFilename = reFilename.exec(decodeURIComponent(suggestedFilename))[0];
-      } catch {}
+      } catch { }
     }
   }
   return suggestedFilename || defaultFilename;
@@ -1181,17 +1181,17 @@ class PDFDateString {
     }
     this.#regex ||= new RegExp(
       "^D:" +
-        "(\\d{4})" +
-        "(\\d{2})?" +
-        "(\\d{2})?" +
-        "(\\d{2})?" +
-        "(\\d{2})?" +
-        "(\\d{2})?" +
-        "([Z|+|-])?" +
-        "(\\d{2})?" +
-        "'?" +
-        "(\\d{2})?" +
-        "'?"
+      "(\\d{4})" +
+      "(\\d{2})?" +
+      "(\\d{2})?" +
+      "(\\d{2})?" +
+      "(\\d{2})?" +
+      "(\\d{2})?" +
+      "([Z|+|-])?" +
+      "(\\d{2})?" +
+      "'?" +
+      "(\\d{2})?" +
+      "'?"
     );
     const matches = this.#regex.exec(input);
     if (!matches) {
@@ -2183,8 +2183,8 @@ class AnnotationEditorUIManager {
       "highlightColors",
       this.#highlightColors
         ? new Map(
-            this.#highlightColors.split(",").map((pair) => pair.split("=").map((x) => x.trim()))
-          )
+          this.#highlightColors.split(",").map((pair) => pair.split("=").map((x) => x.trim()))
+        )
         : null
     );
   }
@@ -3926,7 +3926,7 @@ class AnnotationEditor {
     const style = getComputedStyle(document.documentElement);
     AnnotationEditor._borderLineWidth = parseFloat(style.getPropertyValue("--outline-width")) || 0;
   }
-  static updateDefaultParams(_type, _value) {}
+  static updateDefaultParams(_type, _value) { }
   static get defaultPropertiesToUpdate() {
     return [];
   }
@@ -4082,8 +4082,8 @@ class AnnotationEditor {
       block: "nearest"
     });
   }
-  _onTranslating(x, y) {}
-  _onTranslated(x, y) {}
+  _onTranslating(x, y) { }
+  _onTranslated(x, y) { }
   get _hasBeenMoved() {
     return (
       !!this.#initialRect && (this.#initialRect[0] !== this.x || this.#initialRect[1] !== this.y)
@@ -4236,15 +4236,15 @@ class AnnotationEditor {
     const classes = this._willKeepAspectRatio
       ? ["topLeft", "topRight", "bottomRight", "bottomLeft"]
       : [
-          "topLeft",
-          "topMiddle",
-          "topRight",
-          "middleRight",
-          "bottomRight",
-          "bottomMiddle",
-          "bottomLeft",
-          "middleLeft"
-        ];
+        "topLeft",
+        "topMiddle",
+        "topRight",
+        "middleRight",
+        "bottomRight",
+        "bottomMiddle",
+        "bottomLeft",
+        "middleLeft"
+      ];
     const signal = this._uiManager._signal;
     for (const name of classes) {
       const div = document.createElement("div");
@@ -4323,7 +4323,7 @@ class AnnotationEditor {
     this.fixAndSetPosition();
     this._onResized();
   }
-  _onResized() {}
+  _onResized() { }
   #addResizeToUndoStack() {
     if (!this.#savedDimensions) {
       return;
@@ -4436,7 +4436,7 @@ class AnnotationEditor {
       ratioX = ratioY = Math.max(
         Math.min(
           Math.hypot(oppositePoint[0] - point[0] - deltaX, oppositePoint[1] - point[1] - deltaY) /
-            oldDiag,
+          oldDiag,
           1 / savedWidth,
           1 / savedHeight
         ),
@@ -4466,7 +4466,7 @@ class AnnotationEditor {
     this.fixAndSetPosition();
     this._onResizing();
   }
-  _onResizing() {}
+  _onResizing() { }
   altTextFinish() {
     this.#altText?.finish();
   }
@@ -4722,8 +4722,8 @@ class AnnotationEditor {
       signal
     });
   }
-  _onStartDragging() {}
-  _onStopDragging() {}
+  _onStartDragging() { }
+  _onStopDragging() { }
   moveInDOM() {
     if (this.#moveInDOMTimeout) {
       clearTimeout(this.#moveInDOMTimeout);
@@ -4800,7 +4800,7 @@ class AnnotationEditor {
         throw new Error("Invalid rotation");
     }
   }
-  onceAdded(focus) {}
+  onceAdded(focus) { }
   isEmpty() {
     return false;
   }
@@ -4840,8 +4840,8 @@ class AnnotationEditor {
   rebuild() {
     this.#addFocusListeners();
   }
-  rotate(_angle) {}
-  resize() {}
+  rotate(_angle) { }
+  resize() { }
   serializeDeleted() {
     return {
       id: this.annotationElementId,
@@ -5046,10 +5046,10 @@ class AnnotationEditor {
     this._editToolbar?.hide();
     this.#altText?.toggleAltTextBadge(true);
   }
-  updateParams(type, value) {}
-  disableEditing() {}
-  enableEditing() {}
-  enterInEditMode() {}
+  updateParams(type, value) { }
+  disableEditing() { }
+  enableEditing() { }
+  enterInEditMode() { }
   getImageForAltText() {
     return null;
   }
@@ -5381,10 +5381,10 @@ class AnnotationStorage {
     }
     return map.size > 0
       ? {
-          map,
-          hash: hash.hexdigest(),
-          transfer
-        }
+        map,
+        hash: hash.hexdigest(),
+        transfer
+      }
       : SerializableEmpty;
   }
   get editorStats() {
@@ -5455,8 +5455,8 @@ class PrintAnnotationStorage extends AnnotationStorage {
       map,
       transfer
         ? {
-            transfer
-          }
+          transfer
+        }
         : null
     );
     this.#serializable = {
@@ -5614,27 +5614,27 @@ class FontLoader {
   get _loadTestFont() {
     const testFont = atob(
       "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
-        "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"
+      "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" +
+      "AAMAAQQJAAMAAgABAAMAAQQJAAQAAgABAAMAAQQJAAUAAgABAAMAAQQJAAYAAgABWABY" +
+      "AAAAAAAAAwAAAAMAAAAcAAEAAAAAADwAAwABAAAAHAAEACAAAAAEAAQAAQAAAC7//wAA" +
+      "AC7////TAAEAAAAAAAABBgAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+      "AAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAD/gwAyAAAAAQAAAAAAAAAAAAAAAAAA" +
+      "AAABAAQEAAEBAQJYAAEBASH4DwD4GwHEAvgcA/gXBIwMAYuL+nz5tQXkD5j3CBLnEQAC" +
+      "AQEBIVhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYAAABAQAADwACAQEEE/t3" +
+      "Dov6fAH6fAT+fPp8+nwHDosMCvm1Cvm1DAz6fBQAAAAAAAABAAAAAMmJbzEAAAAAzgTj" +
+      "FQAAAADOBOQpAAEAAAAAAAAADAAUAAQAAAABAAAAAgABAAAAAAAAAAAD6AAAAAAAAA=="
     );
     return shadow(this, "_loadTestFont", testFont);
   }
@@ -5791,7 +5791,7 @@ const StreamKind = {
   PULL_COMPLETE: 7,
   START_COMPLETE: 8
 };
-function onFn() {}
+function onFn() { }
 function wrapReason(ex) {
   if (
     ex instanceof AbortException ||
@@ -6320,7 +6320,7 @@ class BaseFilterFactory {
   addHighlightHCMFilter(filterName, fgColor, bgColor, newFgColor, newBgColor) {
     return "none";
   }
-  destroy(keepHCM = false) {}
+  destroy(keepHCM = false) { }
 }
 class DOMFilterFactory extends BaseFilterFactory {
   #baseUrl;
@@ -6675,7 +6675,7 @@ async function node_utils_fetchData(url) {
   const data = await fs.promises.readFile(url);
   return new Uint8Array(data);
 }
-class NodeFilterFactory extends BaseFilterFactory {}
+class NodeFilterFactory extends BaseFilterFactory { }
 class NodeCanvasFactory extends BaseCanvasFactory {
   _createCanvas(width, height) {
     const require = process.getBuiltinModule("module").createRequire(import.meta.url);
@@ -7777,7 +7777,7 @@ function putBinaryImageData(ctx, imgData) {
         elemsInThisChunk = width * thisChunkHeight;
       }
       destPos = 0;
-      for (j = elemsInThisChunk; j--; ) {
+      for (j = elemsInThisChunk; j--;) {
         dest[destPos++] = src[srcPos++];
         dest[destPos++] = src[srcPos++];
         dest[destPos++] = src[srcPos++];
@@ -8200,8 +8200,8 @@ class CanvasGraphics {
       ctx.lineDashOffset = dashPhase;
     }
   }
-  setRenderingIntent(intent) {}
-  setFlatness(flatness) {}
+  setRenderingIntent(intent) { }
+  setFlatness(flatness) { }
   setGState(states) {
     for (const [key, value] of states) {
       switch (key) {
@@ -9060,7 +9060,7 @@ class CanvasGraphics {
     ctx.restore();
     this.processingType3 = null;
   }
-  setCharWidth(xWidth, yWidth) {}
+  setCharWidth(xWidth, yWidth) { }
   setCharWidthAndBounds(xWidth, yWidth, llx, lly, urx, ury) {
     this.ctx.rect(llx, lly, urx - llx, ury - lly);
     this.ctx.clip();
@@ -9550,8 +9550,8 @@ class CanvasGraphics {
     this.ctx.fillRect(0, 0, 1, 1);
     this.compose();
   }
-  markPoint(tag) {}
-  markPointProps(tag, properties) {}
+  markPoint(tag) { }
+  markPointProps(tag, properties) { }
   beginMarkedContent(tag) {
     this.markedContentStack.push({
       visible: true
@@ -9573,8 +9573,8 @@ class CanvasGraphics {
     this.markedContentStack.pop();
     this.contentVisible = this.isContentVisible();
   }
-  beginCompat() {}
-  endCompat() {}
+  beginCompat() { }
+  endCompat() { }
   consumePath(clipBox) {
     const isEmpty = this.current.isEmptyClip();
     if (this.pendingClip) {
@@ -9999,7 +9999,7 @@ class PDFDataTransportStream {
     if (initialData?.length > 0) {
       const buffer =
         initialData instanceof Uint8Array &&
-        initialData.byteLength === initialData.buffer.byteLength
+          initialData.byteLength === initialData.buffer.byteLength
           ? initialData.buffer
           : new Uint8Array(initialData).buffer;
       this._queuedChunks.push(buffer);
@@ -10284,13 +10284,13 @@ function getFilenameFromContentDispositionHeader(contentDisposition) {
   function toParamRegExp(attributePattern, flags) {
     return new RegExp(
       "(?:^|;)\\s*" +
-        attributePattern +
-        "\\s*=\\s*" +
-        "(" +
-        '[^";\\s][^;\\s]*' +
-        "|" +
-        '"(?:[^"\\\\]|\\\\"?)+"?' +
-        ")",
+      attributePattern +
+      "\\s*=\\s*" +
+      "(" +
+      '[^";\\s][^;\\s]*' +
+      "|" +
+      '"(?:[^"\\\\]|\\\\"?)+"?' +
+      ")",
       flags
     );
   }
@@ -10306,7 +10306,7 @@ function getFilenameFromContentDispositionHeader(contentDisposition) {
         const buffer = stringToBytes(value);
         value = decoder.decode(buffer);
         needsEncodingFixup = false;
-      } catch {}
+      } catch { }
     }
     return value;
   }
@@ -10392,7 +10392,7 @@ function getFilenameFromContentDispositionHeader(contentDisposition) {
         }
         try {
           text = atob(text);
-        } catch {}
+        } catch { }
         return textdecode(charset, text);
       }
     );
@@ -10416,7 +10416,7 @@ function createHeaders(isHttp, httpHeaders) {
 function getResponseOrigin(url) {
   try {
     return new URL(url).origin;
-  } catch {}
+  } catch { }
   return null;
 }
 function validateRangeRequestCapabilities({
@@ -10457,7 +10457,7 @@ function extractFilenameFromHeader(responseHeaders) {
     if (filename.includes("%")) {
       try {
         filename = decodeURIComponent(filename);
-      } catch {}
+      } catch { }
     }
     if (isPdfFile(filename)) {
       return filename;
@@ -10856,13 +10856,13 @@ class PDFNetworkStreamFullRequestReader {
     const responseHeaders = new Headers(
       rawResponseHeaders
         ? rawResponseHeaders
-            .trimStart()
-            .replace(/[^\S ]+$/, "")
-            .split(/[\r\n]+/)
-            .map((x) => {
-              const [key, ...val] = x.split(": ");
-              return [key, val.join(": ")];
-            })
+          .trimStart()
+          .replace(/[^\S ]+$/, "")
+          .split(/[\r\n]+/)
+          .map((x) => {
+            const [key, ...val] = x.split(": ");
+            return [key, val.join(": ")];
+          })
         : []
     );
     const { allowRangeRequests, suggestedLength } = validateRangeRequestCapabilities({
@@ -11370,7 +11370,7 @@ class TextLayer {
         this.#layoutTextParams = null;
         this.#styleCache = null;
       })
-      .catch(() => {});
+      .catch(() => { });
   }
   static get fontFamilyMap() {
     const { isWindows, isFirefox } = util_FeatureTest.platform;
@@ -11428,7 +11428,7 @@ class TextLayer {
   }
   cancel() {
     const abortEx = new AbortException("TextLayer task cancelled.");
-    this.#reader?.cancel(abortEx).catch(() => {});
+    this.#reader?.cancel(abortEx).catch(() => { });
     this.#reader = null;
     this.#capability.reject(abortEx);
   }
@@ -11783,11 +11783,11 @@ function getDocument(src = {}) {
     typeof src.useWorkerFetch === "boolean"
       ? src.useWorkerFetch
       : CMapReaderFactory === DOMCMapReaderFactory &&
-        StandardFontDataFactory === DOMStandardFontDataFactory &&
-        cMapUrl &&
-        standardFontDataUrl &&
-        isValidFetchUrl(cMapUrl, document.baseURI) &&
-        isValidFetchUrl(standardFontDataUrl, document.baseURI);
+      StandardFontDataFactory === DOMStandardFontDataFactory &&
+      cMapUrl &&
+      standardFontDataUrl &&
+      isValidFetchUrl(cMapUrl, document.baseURI) &&
+      isValidFetchUrl(standardFontDataUrl, document.baseURI);
   const styleElement = null;
   setVerbosityLevel(verbosity);
   const transportFactory = {
@@ -11802,14 +11802,14 @@ function getDocument(src = {}) {
     cMapReaderFactory: useWorkerFetch
       ? null
       : new CMapReaderFactory({
-          baseUrl: cMapUrl,
-          isCompressed: cMapPacked
-        }),
+        baseUrl: cMapUrl,
+        isCompressed: cMapPacked
+      }),
     standardFontDataFactory: useWorkerFetch
       ? null
       : new StandardFontDataFactory({
-          baseUrl: standardFontDataUrl
-        })
+        baseUrl: standardFontDataUrl
+      })
   };
   if (!worker) {
     const workerParams = {
@@ -11962,7 +11962,7 @@ function getDataProp(val) {
   }
   throw new Error(
     "Invalid PDF binary data: either TypedArray, " +
-      "string, or array-like object is expected in the data property."
+    "string, or array-like object is expected in the data property."
   );
 }
 function isRefProxy(ref) {
@@ -12062,7 +12062,7 @@ class PDFDataRangeTransport {
   requestDataRange(begin, end) {
     unreachable("Abstract method PDFDataRangeTransport.requestDataRange");
   }
-  abort() {}
+  abort() { }
 }
 class PDFDocumentProxy {
   constructor(pdfInfo, transport) {
@@ -12329,7 +12329,7 @@ class PDFPageProxy {
         if (!(optionalContentConfig.renderingIntent & renderingIntent)) {
           throw new Error(
             "Must use the same `intent`-argument when calling the `PDFPageProxy.render` " +
-              "and `PDFDocumentProxy.getOptionalContentConfig` methods."
+            "and `PDFDocumentProxy.getOptionalContentConfig` methods."
           );
         }
         internalRenderTask.initializeGraphics({
@@ -12590,7 +12590,7 @@ class PDFPageProxy {
         return;
       }
     }
-    intentState.streamReader.cancel(new AbortException(reason.message)).catch(() => {});
+    intentState.streamReader.cancel(new AbortException(reason.message)).catch(() => { });
     intentState.streamReader = null;
     if (this._transport.destroyed) {
       return;
@@ -12616,8 +12616,8 @@ class LoopbackPort {
         obj,
         transfer
           ? {
-              transfer
-            }
+            transfer
+          }
           : null
       )
     };
@@ -12720,7 +12720,7 @@ class PDFWorker {
   _initializeFromPort(port) {
     this._port = port;
     this._messageHandler = new MessageHandler("main", "worker", port);
-    this._messageHandler.on("ready", function () {});
+    this._messageHandler.on("ready", function () { });
     this.#resolve();
   }
   _initialize() {
@@ -12836,7 +12836,7 @@ class PDFWorker {
       if (cachedPort._pendingDestroy) {
         throw new Error(
           "PDFWorker.fromPort - the worker is being destroyed.\n" +
-            "Please remember to await `PDFDocumentLoadingTask.destroy()`-calls."
+          "Please remember to await `PDFDocumentLoadingTask.destroy()`-calls."
         );
       }
       return cachedPort;
@@ -12930,7 +12930,7 @@ class WorkerTransport {
     }
     const annotationStorage =
       renderingIntent & RenderingIntentFlag.PRINT &&
-      printAnnotationStorage instanceof PrintAnnotationStorage
+        printAnnotationStorage instanceof PrintAnnotationStorage
         ? printAnnotationStorage
         : this.annotationStorage;
     switch (annotationMode) {
@@ -13256,7 +13256,7 @@ class WorkerTransport {
     if (this.annotationStorage.size <= 0) {
       warn(
         "saveDocument called while `annotationStorage` is empty, " +
-          "please use the getData-method instead."
+        "please use the getData-method instead."
       );
     }
     const { map, transfer } = this.annotationStorage.serializable;
@@ -13544,7 +13544,7 @@ class InternalRenderTask {
     this._canvas = params.canvasContext.canvas;
   }
   get completed() {
-    return this.capability.promise.catch(function () {});
+    return this.capability.promise.catch(function () { });
   }
   initializeGraphics({ transparency = false, optionalContentConfig }) {
     if (this.cancelled) {
@@ -13554,8 +13554,8 @@ class InternalRenderTask {
       if (InternalRenderTask.#canvasInUse.has(this._canvas)) {
         throw new Error(
           "Cannot use the same canvas during multiple render() operations. " +
-            "Use different canvas or ensure previous operations were " +
-            "cancelled or completed."
+          "Use different canvas or ensure previous operations were " +
+          "cancelled or completed."
         );
       }
       InternalRenderTask.#canvasInUse.add(this._canvas);
@@ -13599,10 +13599,10 @@ class InternalRenderTask {
     InternalRenderTask.#canvasInUse.delete(this._canvas);
     this.callback(
       error ||
-        new RenderingCancelledException(
-          `Rendering cancelled, page ${this._pageIndex + 1}`,
-          extraDelay
-        )
+      new RenderingCancelledException(
+        `Rendering cancelled, page ${this._pageIndex + 1}`,
+        extraDelay
+      )
     );
   }
   operatorListChanged() {
@@ -14629,7 +14629,7 @@ class LinkAnnotationElement extends AnnotationElement {
     if (!this._fieldObjects) {
       warn(
         `_bindResetFormAction - "resetForm" action not supported, ` +
-          "ensure that the `fieldObjects` parameter is provided."
+        "ensure that the `fieldObjects` parameter is provided."
       );
       if (!otherClickAction) {
         link.onclick = () => false;
@@ -18433,7 +18433,7 @@ class HighlightEditor extends AnnotationEditor {
         break;
     }
   }
-  translateInPage(x, y) {}
+  translateInPage(x, y) { }
   get toolbarPosition() {
     return this.#lastPoint;
   }
@@ -19493,7 +19493,7 @@ class DrawingEditor extends AnnotationEditor {
       this.#drawOutlines.updateParentDimensions(this.parentDimensions, this.parent.scale)
     );
   }
-  static onScaleChangingWhenDrawing() {}
+  static onScaleChangingWhenDrawing() { }
   render() {
     if (this.div) {
       return this.div;
@@ -19723,7 +19723,7 @@ class DrawingEditor extends AnnotationEditor {
     this._cleanup(true);
     return null;
   }
-  createDrawingOptions(_data) {}
+  createDrawingOptions(_data) { }
   static deserializeDraw(_pageX, _pageY, _pageWidth, _pageHeight, _innerWidth, _data) {
     unreachable("Not implemented");
   }
@@ -20759,7 +20759,7 @@ class StampEditor extends AnnotationEditor {
       });
       try {
         this.mlGuessAltText();
-      } catch {}
+      } catch { }
     }
     this.div.focus();
   }
