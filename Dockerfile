@@ -3,6 +3,7 @@ WORKDIR /workspace
 RUN corepack enable
 
 FROM base AS deps
+COPY pnpm-lock.yaml ./
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
@@ -14,7 +15,7 @@ COPY plugins/hello-world/package.json plugins/hello-world/package.json
 COPY plugins/inventory/package.json plugins/inventory/package.json
 COPY plugins/ai/package.json plugins/ai/package.json
 COPY plugins/projects/package.json plugins/projects/package.json
-RUN pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile
 
 FROM deps AS dev
 COPY . .
