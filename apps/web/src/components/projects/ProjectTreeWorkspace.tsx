@@ -39,11 +39,16 @@ interface DropState {
   mode: "before" | "inside" | "after";
 }
 
+function compareNodes(left: DraftNode, right: DraftNode) {
+  const orderGap = (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
+  if (orderGap !== 0) return orderGap;
+  return String(left.id ?? "").localeCompare(String(right.id ?? ""));
+}
+
 function buildTree(nodes: DraftNode[]) {
   const byId = new Map<string, TreeNodeView>();
   const roots: TreeNodeView[] = [];
-  const sorted = [...nodes].sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0));
-  for (const node of sorted) {
+  for (const node of nodes) {
     byId.set(String(node.id), { ...node, children: [] });
   }
   for (const node of byId.values()) {
@@ -53,7 +58,67 @@ function buildTree(nodes: DraftNode[]) {
       roots.push(node);
     }
   }
+  const sortTree = (items: TreeNodeView[]) => {
+    items.sort(compareNodes);
+    for (const item of items) {
+      sortTree(item.children);
+    }
+  };
+  sortTree(roots);
   return roots;
+}
+
+function normalizeDraftNodes(nodes: DraftNode[]) {
+  const grouped = new Map<string, DraftNode[]>();
+  for (const node of nodes) {
+    const parentKey = node.parentId ?? "";
+    const current = grouped.get(parentKey) ?? [];
+    current.push(node);
+    grouped.set(parentKey, current);
+  }
+  const next = [...nodes];
+  for (const siblings of grouped.values()) {
+    siblings
+      .sort(compareNodes)
+      .forEach((node, index) => {
+        const target = next.find((item) => item.id === node.id);
+        if (target) {
+          target.sortOrder = index + 1;
+        }
+      });
+  }
+  return next;
+}
+
+function nextSiblingSortOrder(nodes: DraftNode[], parentId?: string) {
+  const siblings = nodes.filter((node) => (node.parentId ?? "") === (parentId ?? ""));
+  return siblings.length + 1;
+}
+
+function validateDraftNodes(nodes: DraftNode[]) {
+  const ids = new Set(nodes.map((node) => String(node.id)));
+  for (const node of nodes) {
+    if (!node.title.trim()) {
+      throw new Error("项目树节点标题不能为空。");
+    }
+    if (node.parentId && !ids.has(String(node.parentId))) {
+      throw new Error(`节点“${node.title}”的父节点不存在，请重新整理层级。`);
+    }
+    if (node.parentId && String(node.parentId) === String(node.id)) {
+      throw new Error(`节点“${node.title}”不能把自己设为父节点。`);
+    }
+  }
+  for (const node of nodes) {
+    const visited = new Set<string>([String(node.id)]);
+    let currentParentId = node.parentId;
+    while (currentParentId) {
+      if (visited.has(String(currentParentId))) {
+        throw new Error(`节点“${node.title}”存在循环层级，请调整父子关系后再保存。`);
+      }
+      visited.add(String(currentParentId));
+      currentParentId = nodes.find((item) => String(item.id) === String(currentParentId))?.parentId;
+    }
+  }
 }
 
 function flattenTree(nodes: TreeNodeView[], parentId?: string, output: DraftNode[] = []) {
@@ -138,6 +203,20 @@ function treeToMarkdown(nodes: TreeNodeView[], depth = 0): string {
     .join("\n");
 }
 
+function toDraftNodes(nodes: ProjectTreeNode[]): DraftNode[] {
+  return nodes.map((node) => ({
+    id: node.id,
+    parentId: node.parentId,
+    title: node.title,
+    status: node.status,
+    sortOrder: node.sortOrder,
+    ownerUserId: node.ownerUserId,
+    remark: node.remark,
+    deliverableNote: node.deliverableNote,
+    collapsed: node.collapsed
+  }));
+}
+
 export function ProjectTreeWorkspace({
   project,
   members,
@@ -154,25 +233,35 @@ export function ProjectTreeWorkspace({
   const [dropState, setDropState] = useState<DropState | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [snapshotBusy, setSnapshotBusy] = useState(false);
+  const [snapshotFeedback, setSnapshotFeedback] = useState("");
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
 
   useEffect(() => {
-    const normalizedNodes = nodes.map((node) => ({
-      id: node.id,
-      parentId: node.parentId,
-      title: node.title,
-      status: node.status,
-      sortOrder: node.sortOrder,
-      ownerUserId: node.ownerUserId,
-      remark: node.remark,
-      deliverableNote: node.deliverableNote,
-      collapsed: node.collapsed
-    }));
+    const normalizedNodes = toDraftNodes(nodes);
     setDraftNodes(normalizedNodes);
     setSelectedNodeId(normalizedNodes[0]?.id ?? "");
     setContextMenu(null);
     setDropState(null);
     setDirty(false);
   }, [nodes]);
+
+  useEffect(() => {
+    setSelectedSnapshotId((current) => {
+      if (current && snapshots.some((snapshot) => snapshot.id === current)) {
+        return current;
+      }
+      return snapshots[0]?.id ?? "";
+    });
+  }, [snapshots]);
+
+  useEffect(() => {
+    if (!snapshotFeedback) {
+      return;
+    }
+    const timer = window.setTimeout(() => setSnapshotFeedback(""), 3200);
+    return () => window.clearTimeout(timer);
+  }, [snapshotFeedback]);
 
   useEffect(() => {
     const hideMenu = () => setContextMenu(null);
@@ -195,10 +284,29 @@ export function ProjectTreeWorkspace({
   );
   const totalNodes = draftNodes.length;
   const completion = totalNodes === 0 ? 0 : Math.round((stats.done / totalNodes) * 100);
+  const selectedSnapshot =
+    snapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? snapshots[0] ?? null;
+  const selectedSnapshotNodes = selectedSnapshot ? toDraftNodes(selectedSnapshot.nodes) : [];
+  const selectedSnapshotTree = useMemo(
+    () => buildTree(selectedSnapshotNodes),
+    [selectedSnapshotNodes]
+  );
+  const snapshotStats = useMemo(
+    () => ({
+      done: selectedSnapshotNodes.filter((node) => node.status === "done").length,
+      doing: selectedSnapshotNodes.filter((node) => node.status === "doing").length,
+      todo: selectedSnapshotNodes.filter((node) => node.status === "todo").length
+    }),
+    [selectedSnapshotNodes]
+  );
+  const snapshotCompletion =
+    selectedSnapshotNodes.length === 0
+      ? 0
+      : Math.round((snapshotStats.done / selectedSnapshotNodes.length) * 100);
 
   function mutate(mutator: (current: DraftNode[]) => DraftNode[]) {
     setDraftNodes((current) => {
-      const next = mutator(current);
+      const next = normalizeDraftNodes(mutator(current));
       setDirty(true);
       return next;
     });
@@ -230,16 +338,17 @@ export function ProjectTreeWorkspace({
 
   function createNode(parentId?: string) {
     const nextId = `draft-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-    const siblings = draftNodes.filter((node) => (node.parentId ?? "") === (parentId ?? ""));
-    const nextNode: DraftNode = {
-      id: nextId,
-      parentId,
-      title: "新节点",
-      status: "todo",
-      sortOrder: siblings.length + 1,
-      collapsed: false
-    };
-    mutate((current) => [...current, nextNode]);
+    mutate((current) => [
+      ...current,
+      {
+        id: nextId,
+        parentId,
+        title: "新节点",
+        status: "todo",
+        sortOrder: nextSiblingSortOrder(current, parentId),
+        collapsed: false
+      }
+    ]);
     setSelectedNodeId(nextId);
   }
 
@@ -278,17 +387,56 @@ export function ProjectTreeWorkspace({
 
   function promoteNode() {
     if (!selectedNode?.parentId) return;
-    const parent = draftNodes.find((node) => String(node.id) === selectedNode.parentId);
-    updateSelected({ parentId: parent?.parentId });
+    mutate((current) => {
+      const node = current.find((item) => String(item.id) === selectedNodeId);
+      if (!node?.parentId) {
+        return current;
+      }
+      const parent = current.find((item) => String(item.id) === node.parentId);
+      const nextParentId = parent?.parentId;
+      return current.map((item) =>
+        String(item.id) === selectedNodeId
+          ? {
+              ...item,
+              parentId: nextParentId,
+              sortOrder: nextSiblingSortOrder(
+                current.filter((candidate) => String(candidate.id) !== selectedNodeId),
+                nextParentId
+              )
+            }
+          : item
+      );
+    });
   }
 
   function demoteNode() {
     if (!selectedNode) return;
-    const siblings = siblingsOf(selectedNode);
-    const index = siblings.findIndex((node) => String(node.id) === selectedNodeId);
-    if (index <= 0) return;
-    const previousSibling = siblings[index - 1];
-    updateSelected({ parentId: String(previousSibling.id) });
+    mutate((current) => {
+      const node = current.find((item) => String(item.id) === selectedNodeId);
+      if (!node) {
+        return current;
+      }
+      const siblings = current
+        .filter((item) => (item.parentId ?? "") === (node.parentId ?? ""))
+        .sort(compareNodes);
+      const index = siblings.findIndex((item) => String(item.id) === selectedNodeId);
+      if (index <= 0) {
+        return current;
+      }
+      const previousSibling = siblings[index - 1];
+      return current.map((item) =>
+        String(item.id) === selectedNodeId
+          ? {
+              ...item,
+              parentId: String(previousSibling.id),
+              sortOrder: nextSiblingSortOrder(
+                current.filter((candidate) => String(candidate.id) !== selectedNodeId),
+                String(previousSibling.id)
+              )
+            }
+          : item
+      );
+    });
   }
 
   function expandAll(collapsed: boolean) {
@@ -296,14 +444,34 @@ export function ProjectTreeWorkspace({
   }
 
   async function persist() {
-    const nextNodes = flattenTree(tree);
-    await onSave(project.id, nextNodes);
-    setDirty(false);
+    try {
+      const nextNodes = flattenTree(tree);
+      validateDraftNodes(nextNodes);
+      await onSave(project.id, nextNodes);
+      setDirty(false);
+      setSnapshotFeedback("项目树已保存。");
+    } catch (error) {
+      setSnapshotFeedback(error instanceof Error ? error.message : "保存项目树失败");
+    }
   }
 
   async function snapshot() {
-    await onCreateSnapshot(project.id);
-    setDirty(false);
+    try {
+      setSnapshotBusy(true);
+      setSnapshotFeedback("");
+      if (dirty) {
+        const nextNodes = flattenTree(tree);
+        validateDraftNodes(nextNodes);
+        await onSave(project.id, nextNodes);
+        setDirty(false);
+      }
+      await onCreateSnapshot(project.id);
+      setSnapshotFeedback("已生成新的结构快照，右侧历史已更新。");
+    } catch (error) {
+      setSnapshotFeedback(error instanceof Error ? error.message : "生成快照失败");
+    } finally {
+      setSnapshotBusy(false);
+    }
   }
 
   function exportTreeAsJson() {
@@ -342,44 +510,48 @@ export function ProjectTreeWorkspace({
   function handleDrop(targetId: string) {
     if (!draggingNodeId || draggingNodeId === targetId) return;
     if (isDescendant(draftNodes, draggingNodeId, targetId)) return;
-    const target = draftNodes.find((node) => String(node.id) === targetId);
-    const dragged = draftNodes.find((node) => String(node.id) === draggingNodeId);
-    if (!target || !dragged) return;
-    const mode = dropState?.nodeId === targetId ? dropState.mode : "inside";
-    if (mode === "inside") {
-      mutate((current) =>
-        current.map((node) =>
+    mutate((current) => {
+      const target = current.find((node) => String(node.id) === targetId);
+      const dragged = current.find((node) => String(node.id) === draggingNodeId);
+      if (!target || !dragged) {
+        return current;
+      }
+      const mode = dropState?.nodeId === targetId ? dropState.mode : "inside";
+      if (mode === "inside") {
+        return current.map((node) =>
           String(node.id) === draggingNodeId
             ? {
                 ...node,
-                parentId: targetId
+                parentId: targetId,
+                sortOrder: nextSiblingSortOrder(
+                  current.filter((candidate) => String(candidate.id) !== draggingNodeId),
+                  targetId
+                )
               }
             : node
-        )
-      );
-    } else {
+        );
+      }
+
       const nextParentId = target.parentId;
-      const siblingSource = draftNodes
+      const siblingSource = current
         .filter((node) => (node.parentId ?? "") === (nextParentId ?? ""))
-        .sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0))
+        .sort(compareNodes)
         .filter((node) => String(node.id) !== draggingNodeId);
       const targetIndex = siblingSource.findIndex((node) => String(node.id) === targetId);
       const insertIndex = mode === "before" ? targetIndex : targetIndex + 1;
       siblingSource.splice(insertIndex, 0, { ...dragged, parentId: nextParentId });
       const indexed = reindex(siblingSource);
-      mutate((current) =>
-        current.map((node) => {
-          if (String(node.id) === draggingNodeId) {
-            return {
-              ...node,
-              parentId: nextParentId,
-              sortOrder: indexed.find((item) => String(item.id) === draggingNodeId)?.sortOrder ?? 1
-            };
-          }
-          return indexed.find((item) => item.id === node.id) ?? node;
-        })
-      );
-    }
+      return current.map((node) => {
+        if (String(node.id) === draggingNodeId) {
+          return {
+            ...node,
+            parentId: nextParentId,
+            sortOrder: indexed.find((item) => String(item.id) === draggingNodeId)?.sortOrder ?? 1
+          };
+        }
+        return indexed.find((item) => item.id === node.id) ?? node;
+      });
+    });
     setDraggingNodeId("");
     setDropState(null);
   }
@@ -497,6 +669,40 @@ export function ProjectTreeWorkspace({
     });
   }
 
+  function renderSnapshotTree(nodesToRender: TreeNodeView[], depth = 0) {
+    return nodesToRender.map((node) => {
+      const owner =
+        members.find((member) => member.userId === node.ownerUserId)?.userName ??
+        (selectedSnapshot?.nodes.find((item) => item.id === node.id)?.ownerName ?? "未指定");
+      return (
+        <div key={`snapshot-${String(node.id)}`} className="tree-node-wrap preview">
+          <div className="tree-node-row">
+            {depth > 0 ? <div className="tree-node-connector" /> : null}
+            <span
+              className={
+                node.children.length > 0
+                  ? "tree-node-toggle tree-node-toggle-static"
+                  : "tree-node-toggle tree-node-toggle-leaf tree-node-toggle-static"
+              }
+            >
+              {node.children.length === 0 ? "·" : "−"}
+            </span>
+            <div className={`tree-canvas-node readonly status-${node.status}`}>
+              <span className="tree-canvas-status-dot" />
+              <span className="tree-canvas-label">{node.title}</span>
+              <small className="tree-canvas-count">
+                {treeStatusText(node.status)} · {owner}
+              </small>
+            </div>
+          </div>
+          {node.children.length > 0 ? (
+            <div className="tree-node-children">{renderSnapshotTree(node.children, depth + 1)}</div>
+          ) : null}
+        </div>
+      );
+    });
+  }
+
   return (
     <section className="tree-workspace-shell">
       <div className="tree-workspace-topbar">
@@ -508,6 +714,11 @@ export function ProjectTreeWorkspace({
           <StatusBadge tone={dirty ? "pending" : "active"}>
             {dirty ? "未保存" : "已保存"}
           </StatusBadge>
+          {snapshotFeedback ? (
+            <StatusBadge tone={snapshotFeedback.includes("失败") ? "pending" : "active"}>
+              {snapshotFeedback}
+            </StatusBadge>
+          ) : null}
           <button type="button" className="secondary-button" onClick={onExit}>
             返回项目页
           </button>
@@ -539,9 +750,9 @@ export function ProjectTreeWorkspace({
             type="button"
             className="secondary-button"
             onClick={snapshot}
-            disabled={!canManage}
+            disabled={!canManage || snapshotBusy}
           >
-            生成快照
+            {snapshotBusy ? "生成中..." : dirty ? "保存并生成快照" : "生成快照"}
           </button>
           <button type="button" className="secondary-button" onClick={exportTreeAsJson}>
             导出 JSON
@@ -830,7 +1041,16 @@ export function ProjectTreeWorkspace({
               <div className="empty-hint">还没有结构快照</div>
             ) : (
               snapshots.map((snapshot) => (
-                <div key={snapshot.id} className="snapshot-item">
+                <button
+                  key={snapshot.id}
+                  type="button"
+                  className={
+                    snapshot.id === selectedSnapshot?.id
+                      ? "snapshot-item active"
+                      : "snapshot-item"
+                  }
+                  onClick={() => setSelectedSnapshotId(snapshot.id)}
+                >
                   <div>
                     <strong>版本 {snapshot.version}</strong>
                     <small>
@@ -838,11 +1058,39 @@ export function ProjectTreeWorkspace({
                     </small>
                   </div>
                   <StatusBadge tone="muted">
-                    {new Date(snapshot.createdAt).toLocaleDateString("zh-CN")}
+                    {new Date(snapshot.createdAt).toLocaleString("zh-CN")}
                   </StatusBadge>
-                </div>
+                </button>
               ))
             )}
+            {selectedSnapshot ? (
+              <div className="snapshot-preview-card">
+                <div className="snapshot-preview-head">
+                  <div>
+                    <strong>快照详情 · v{selectedSnapshot.version}</strong>
+                    <small>
+                      {selectedSnapshot.createdByName} ·{" "}
+                      {new Date(selectedSnapshot.createdAt).toLocaleString("zh-CN")}
+                    </small>
+                  </div>
+                  <StatusBadge tone="active">
+                    {selectedSnapshot.nodes.length} 节点 / 完成率 {snapshotCompletion}%
+                  </StatusBadge>
+                </div>
+                <div className="snapshot-preview-stats">
+                  <span>已完成 {snapshotStats.done}</span>
+                  <span>进行中 {snapshotStats.doing}</span>
+                  <span>未开始 {snapshotStats.todo}</span>
+                </div>
+                <div className="snapshot-preview-tree">
+                  {selectedSnapshotTree.length === 0 ? (
+                    <div className="empty-hint">该快照没有保存任何节点</div>
+                  ) : (
+                    renderSnapshotTree(selectedSnapshotTree)
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
         </aside>
       </div>

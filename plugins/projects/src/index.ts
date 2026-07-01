@@ -1755,6 +1755,79 @@ export const projectsPlugin: PluginManifest = {
       return null;
     };
 
+    const normalizeTreeRequests = (rawNodes: TreeNodeWriteRequest[]) => {
+      const sanitized = rawNodes.map((rawNode, index) => {
+        const title = rawNode.title?.trim();
+        if (!title) {
+          throw new Error("项目树节点标题不能为空");
+        }
+        return {
+          id: rawNode.id ?? randomUUID(),
+          parentId: rawNode.parentId ?? undefined,
+          title,
+          status: rawNode.status,
+          sortOrder: rawNode.sortOrder ?? index + 1,
+          ownerUserId: rawNode.ownerUserId,
+          remark: rawNode.remark?.trim() ?? undefined,
+          deliverableNote: rawNode.deliverableNote?.trim() ?? undefined,
+          collapsed: rawNode.collapsed ?? false
+        };
+      });
+
+      const byId = new Map<string, (typeof sanitized)[number]>();
+      for (const node of sanitized) {
+        if (byId.has(node.id)) {
+          throw new Error(`项目树节点 ID 重复：${node.id}`);
+        }
+        byId.set(node.id, node);
+      }
+
+      for (const node of sanitized) {
+        if (node.parentId && !byId.has(node.parentId)) {
+          throw new Error(`节点“${node.title}”的父节点不存在`);
+        }
+        if (node.parentId && node.parentId === node.id) {
+          throw new Error(`节点“${node.title}”不能把自己设为父节点`);
+        }
+      }
+
+      for (const node of sanitized) {
+        const visited = new Set<string>([node.id]);
+        let currentParentId = node.parentId;
+        while (currentParentId) {
+          if (visited.has(currentParentId)) {
+            throw new Error(`节点“${node.title}”存在循环层级，请调整后重试`);
+          }
+          visited.add(currentParentId);
+          currentParentId = byId.get(currentParentId)?.parentId;
+        }
+      }
+
+      const grouped = new Map<string, (typeof sanitized)>();
+      for (const node of sanitized) {
+        const key = node.parentId ?? "";
+        const current = grouped.get(key) ?? [];
+        current.push(node);
+        grouped.set(key, current);
+      }
+
+      for (const siblings of grouped.values()) {
+        siblings
+          .sort((left, right) => {
+            const gap = left.sortOrder - right.sortOrder;
+            if (gap !== 0) {
+              return gap;
+            }
+            return left.id.localeCompare(right.id);
+          })
+          .forEach((node, index) => {
+            node.sortOrder = index + 1;
+          });
+      }
+
+      return sanitized;
+    };
+
     return {
       name: "projects",
       routes: [
@@ -2055,28 +2128,35 @@ export const projectsPlugin: PluginManifest = {
               return denied;
             }
             const payload = body as Partial<{ nodes: TreeNodeWriteRequest[] }>;
-            const rawNodes = payload.nodes ?? [];
+            let rawNodes: ReturnType<typeof normalizeTreeRequests>;
+            try {
+              rawNodes = normalizeTreeRequests(payload.nodes ?? []);
+            } catch (error) {
+              return {
+                status: 400,
+                body: {
+                  error: error instanceof Error ? error.message : "项目树结构非法"
+                }
+              };
+            }
             const nodes: ProjectTreeNode[] = [];
-            for (const [index, rawNode] of rawNodes.entries()) {
-              if (!rawNode.title?.trim()) {
-                return { status: 400, body: { error: "项目树节点标题不能为空" } };
-              }
+            for (const rawNode of rawNodes) {
               const owner = rawNode.ownerUserId
                 ? await resolveUser(context, rawNode.ownerUserId)
                 : null;
               nodes.push({
-                id: rawNode.id ?? randomUUID(),
+                id: rawNode.id,
                 projectId: params.id,
                 parentId: rawNode.parentId ?? undefined,
-                title: rawNode.title.trim(),
+                title: rawNode.title,
                 status: rawNode.status,
-                sortOrder: rawNode.sortOrder ?? index + 1,
+                sortOrder: rawNode.sortOrder,
                 ownerUserId: owner?.id,
                 ownerName: owner?.displayName,
                 ownerIdentityNo: owner?.identityNo,
-                remark: rawNode.remark?.trim() ?? undefined,
-                deliverableNote: rawNode.deliverableNote?.trim() ?? undefined,
-                collapsed: rawNode.collapsed ?? false,
+                remark: rawNode.remark,
+                deliverableNote: rawNode.deliverableNote,
+                collapsed: rawNode.collapsed,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
               });

@@ -614,10 +614,11 @@ export function useLabData(token: string, actor: Actor | null) {
       if (!token) return;
       const snapshot = await fetch(`${apiBase}/projects/${projectId}/tree/snapshot`, {
         method: "POST",
-        headers: toAuthorization(token)
+        headers: toAuthorization(token),
+        body: JSON.stringify({})
       }).then(parseResponse<ProjectTreeSnapshot>);
-      setProjectTreeSnapshots((current) => [snapshot, ...current]);
       setMessage(`已生成快照 v${snapshot.version}，包含 ${snapshot.nodes.length} 个节点。`);
+      await loadProjectWorkspace(projectId);
     },
     async createProgress(payload: { projectId: string; title: string; content: string }) {
       if (!token) return;
