@@ -10,9 +10,7 @@ export default [
       "**/dist/**",
       "**/coverage/**",
       "node_modules/**",
-      "apps/web/public/mammoth.browser.min.js",
-      "apps/web/public/pdf.mjs",
-      "apps/web/public/pdf.worker.min.mjs",
+      "apps/web/public/**",
       "apps/web/scripts/**"
     ]
   },

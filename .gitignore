@@ -50,3 +50,8 @@ CLAUDE.md
 *.temp
 images.tar
 
+# Copied vendor files (generated at build time by copy-pdf-worker.mjs)
+apps/web/public/mammoth.browser.min.js
+apps/web/public/pdf.mjs
+apps/web/public/pdf.worker.min.mjs
+
