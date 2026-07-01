@@ -78,14 +78,12 @@ function normalizeDraftNodes(nodes: DraftNode[]) {
   }
   const next = [...nodes];
   for (const siblings of grouped.values()) {
-    siblings
-      .sort(compareNodes)
-      .forEach((node, index) => {
-        const target = next.find((item) => item.id === node.id);
-        if (target) {
-          target.sortOrder = index + 1;
-        }
-      });
+    siblings.sort(compareNodes).forEach((node, index) => {
+      const target = next.find((item) => item.id === node.id);
+      if (target) {
+        target.sortOrder = index + 1;
+      }
+    });
   }
   return next;
 }
@@ -673,7 +671,8 @@ export function ProjectTreeWorkspace({
     return nodesToRender.map((node) => {
       const owner =
         members.find((member) => member.userId === node.ownerUserId)?.userName ??
-        (selectedSnapshot?.nodes.find((item) => item.id === node.id)?.ownerName ?? "未指定");
+        selectedSnapshot?.nodes.find((item) => item.id === node.id)?.ownerName ??
+        "未指定";
       return (
         <div key={`snapshot-${String(node.id)}`} className="tree-node-wrap preview">
           <div className="tree-node-row">
@@ -1045,9 +1044,7 @@ export function ProjectTreeWorkspace({
                   key={snapshot.id}
                   type="button"
                   className={
-                    snapshot.id === selectedSnapshot?.id
-                      ? "snapshot-item active"
-                      : "snapshot-item"
+                    snapshot.id === selectedSnapshot?.id ? "snapshot-item active" : "snapshot-item"
                   }
                   onClick={() => setSelectedSnapshotId(snapshot.id)}
                 >

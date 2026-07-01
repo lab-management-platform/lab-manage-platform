@@ -1803,7 +1803,7 @@ export const projectsPlugin: PluginManifest = {
         }
       }
 
-      const grouped = new Map<string, (typeof sanitized)>();
+      const grouped = new Map<string, typeof sanitized>();
       for (const node of sanitized) {
         const key = node.parentId ?? "";
         const current = grouped.get(key) ?? [];
