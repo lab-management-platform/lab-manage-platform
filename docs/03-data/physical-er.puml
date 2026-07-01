@@ -1,0 +1,286 @@
+@startuml
+hide circle
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+package "core" {
+  entity "app_user" as core_app_user {
+    * id : text
+    --
+    username : text
+    student_id : text
+    identity_type : text
+    identity_no : text
+    phone : text
+    display_name : text
+    role : text
+    identity_provider : text
+    active : boolean
+    created_at : timestamptz
+  }
+
+  entity "session" as core_session {
+    * token : text
+    --
+    user_id : text
+    created_at : timestamptz
+    expires_at : timestamptz
+  }
+}
+
+package "projects" {
+  entity "project" as proj_project {
+    * id : text
+    --
+    owner_id : text
+    owner_user_id : text
+    owner_name : text
+    owner_identity_no : text
+    advisor_user_id : text
+    advisor_name : text
+    advisor_identity_no : text
+    name : text
+    status : text
+    report_cycle_days : int
+  }
+
+  entity "project_member" as proj_member {
+    * project_id : text
+    * user_id : text
+    --
+    user_name : text
+    identity_type : text
+    identity_no : text
+    member_role : text
+    joined_at : timestamptz
+  }
+
+  entity "task" as proj_task {
+    * id : text
+    --
+    project_id : text
+    assignee_id : text
+    assignee_identity_no : text
+    creator_user_id : text
+    reviewer_user_id : text
+    tree_node_id : text
+    title : text
+    status : text
+    priority : text
+  }
+
+  entity "task_comment" as proj_task_comment {
+    * id : text
+    --
+    task_id : text
+    author_id : text
+    author_name : text
+  }
+
+  entity "progress_report" as proj_report {
+    * id : text
+    --
+    project_id : text
+    author_id : text
+    tree_snapshot_id : text
+    status : text
+    title : text
+  }
+
+  entity "project_report_member_work" as proj_member_work {
+    * id : text
+    --
+    report_id : text
+    user_id : text
+    member_name : text
+    progress_status : text
+  }
+
+  entity "project_tree_node" as proj_tree_node {
+    * id : text
+    --
+    project_id : text
+    parent_id : text
+    owner_user_id : text
+    title : text
+    status : text
+    sort_order : int
+  }
+
+  entity "project_tree_snapshot" as proj_tree_snapshot {
+    * id : text
+    --
+    project_id : text
+    created_by : text
+    version : int
+    created_at : timestamptz
+  }
+
+  entity "project_tree_snapshot_node" as proj_tree_snapshot_node {
+    * id : text
+    --
+    snapshot_id : text
+    project_id : text
+    node_id : text
+    parent_id : text
+    title : text
+    status : text
+    sort_order : int
+  }
+}
+
+package "inventory" {
+  entity "material" as inv_material {
+    * id : text
+    --
+    name : text
+    spec : text
+    stock : int
+    warn_stock : int
+  }
+
+  entity "application" as inv_application {
+    * id : text
+    --
+    material_id : text
+    applicant_id : text
+    project_id : text
+    status : text
+    quantity : int
+  }
+
+  entity "application_review" as inv_review {
+    * id : text
+    --
+    application_id : text
+    reviewer_id : text
+    action : text
+  }
+
+  entity "stock_movement" as inv_stock_movement {
+    * id : text
+    --
+    material_id : text
+    operator_id : text
+    type : text
+    quantity : int
+  }
+}
+
+package "files" {
+  entity "lab_file" as file_lab_file {
+    * id : text
+    --
+    parent_id : text
+    project_id : text
+    report_id : text
+    owner_id : text
+    latest_version_id : text
+    node_type : text
+    category : text
+    file_kind : text
+    storage_provider : text
+  }
+
+  entity "file_version" as file_version {
+    * id : text
+    --
+    file_id : text
+    uploader_id : text
+    version : int
+    mime_type : text
+    size_bytes : int
+  }
+}
+
+package "collaboration" {
+  entity "meeting" as collab_meeting {
+    * id : text
+    --
+    project_id : text
+    created_by : text
+    title : text
+    status : text
+  }
+
+  entity "notification" as collab_notification {
+    * id : text
+    --
+    recipient_id : text
+    project_id : text
+    created_by : text
+    type : text
+  }
+
+  entity "notification_read" as collab_notification_read {
+    * notification_id : text
+    * user_id : text
+    --
+    read_at : timestamptz
+  }
+}
+
+package "ai" {
+  entity "knowledge_document" as ai_knowledge_document {
+    * id : text
+    --
+    created_by : text
+    title : text
+    category : text
+  }
+
+  entity "chat_history" as ai_chat_history {
+    * id : text
+    --
+    user_id : text
+    role : text
+    created_at : timestamptz
+  }
+
+  entity "faq_template" as ai_faq_template {
+    * id : text
+    --
+    question : text
+    category : text
+    sort_order : int
+  }
+
+  entity "knowledge_embedding" as ai_knowledge_embedding {
+    * knowledge_id : text
+    --
+    content_hash : text
+  }
+}
+
+core_app_user ||--o{ core_session
+core_app_user ||--o{ proj_member
+proj_project ||--o{ proj_member
+proj_project ||--o{ proj_task
+proj_task ||--o{ proj_task_comment
+proj_project ||--o{ proj_report
+proj_report ||--o{ proj_member_work
+proj_project ||--o{ proj_tree_node
+proj_tree_node ||--o{ proj_tree_node : parent_id
+proj_project ||--o{ proj_tree_snapshot
+proj_tree_snapshot ||--o{ proj_tree_snapshot_node
+proj_tree_node ||--o{ proj_tree_snapshot_node : node_id
+proj_tree_snapshot ||--o{ proj_report : tree_snapshot_id
+
+inv_material ||--o{ inv_application
+inv_application ||--o{ inv_review
+inv_material ||--o{ inv_stock_movement
+proj_project ||--o{ inv_application
+
+proj_project ||--o{ file_lab_file
+proj_report ||--o{ file_lab_file
+file_lab_file ||--o{ file_version
+
+proj_project ||--o{ collab_meeting
+proj_project ||--o{ collab_notification
+collab_notification ||--o{ collab_notification_read
+
+core_app_user ||--o{ ai_knowledge_document
+core_app_user ||--o{ ai_chat_history
+ai_knowledge_document ||--o{ ai_knowledge_embedding
+
+@enduml

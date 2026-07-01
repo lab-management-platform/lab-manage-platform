@@ -1,30 +1,99 @@
-# 文档索引
+# 文档中心
 
-保留文档以“少而准”为目标，避免 README、需求文档、结构说明和阶段文档之间重复描述同一件事。
+适用对象：跨组接入方、项目维护者、平台开发者  
+更新时间：2026-07-01  
+关联文档：[仓库 README](../README.md)
 
-## 核心入口
+本目录是实验室管理平台的公共文档中心，目标是让不了解本仓库历史的人也能快速回答这几个问题：
 
-- [../README.md](../README.md): 项目概览、启动方式、常用命令
-- 本地 AI 协作文档：`.ai/AI_COLLAB_CONTEXT.md`（仅本机使用，已 gitignore）
+1. 这个项目要解决什么问题
+2. 当前系统有哪些能力、边界和风险
+3. 仓库结构、模块职责、数据库和接口如何组织
+4. 如果要接入、重构或协作开发，应该从哪里开始
 
-## 开发与架构
+## 阅读路径
 
-- [DEVELOPMENT.md](./DEVELOPMENT.md): 本地开发、目录职责、插件扩展流程
-- [DATABASE.md](./DATABASE.md): schema、关键表与迁移入口
-- [plugin-template.md](./plugin-template.md): 新增插件模板
-- [CONTRIBUTING.md](./CONTRIBUTING.md): 提交与协作规范
+### 面向跨组整合
 
-## 接口与权限
+0. [技术栈](./02-architecture/technology-stack.md)
+1. [项目总览](./00-overview/project-overview.md)
+2. [项目需求文档](./01-product/product-requirements.md)
+3. [功能设计](./01-product/functional-design.md)
+4. [系统架构](./02-architecture/system-architecture.md)
+5. [模块划分与文件映射](./02-architecture/module-map.md)
+6. [数据库设计](./03-data/database-design.md)
+7. [API 总览](./04-api/api-overview.md)
+8. [已知风险与路线图](./06-delivery/known-risks-and-roadmap.md)
 
-- [API.md](./API.md): 常用 HTTP 接口说明
-- [PERMISSION_MATRIX.md](./PERMISSION_MATRIX.md): 角色、菜单与权限矩阵
+### 面向本组维护
 
-## 部署与专题
+1. [开发指南](./05-engineering/development-guide.md)
+2. [代码规范](./05-engineering/code-style.md)
+3. [提交规范](./05-engineering/commit-convention.md)
+4. [插件扩展规范](./05-engineering/plugin-extension.md)
+5. [部署说明](./06-delivery/deployment-guide.md)
 
-- [DEPLOYMENT.md](./DEPLOYMENT.md): 生产部署说明
-- [AI_MODULE.md](./AI_MODULE.md): AI 提供商与知识库说明
-- [SYNOLOGY_DRIVE_ADAPTER.md](./SYNOLOGY_DRIVE_ADAPTER.md): Synology Drive 后续适配说明
+## 目录结构
 
-## 项目状态
+```text
+docs/
+├── 00-overview/      项目总览、导航、状态摘要
+├── 01-product/       需求、功能、角色与权限
+├── 02-architecture/  技术栈、架构、模块划分、仓库树
+├── 03-data/          数据库设计与 ER 图
+├── 04-api/           API 分组说明与契约治理
+├── 05-engineering/   开发、代码、提交、扩展规范
+└── 06-delivery/      进度、部署、风险、专题集成说明
+```
 
-- [PROJECT_PROGRESS.md](./PROJECT_PROGRESS.md): 当前进度、近期重点和已知缺口
+## 文档清单
+
+### 00-overview
+
+- [project-overview.md](./00-overview/project-overview.md)
+- [project-status.md](./00-overview/project-status.md)
+
+### 01-product
+
+- [product-requirements.md](./01-product/product-requirements.md)
+- [functional-design.md](./01-product/functional-design.md)
+- [roles-and-permissions.md](./01-product/roles-and-permissions.md)
+
+### 02-architecture
+
+- [technology-stack.md](./02-architecture/technology-stack.md)
+- [system-architecture.md](./02-architecture/system-architecture.md)
+- [module-map.md](./02-architecture/module-map.md)
+- [repository-tree.md](./02-architecture/repository-tree.md)
+
+### 03-data
+
+- [database-design.md](./03-data/database-design.md)
+- [physical-er.md](./03-data/physical-er.md)
+- [physical-er.puml](./03-data/physical-er.puml)
+
+### 04-api
+
+- [api-overview.md](./04-api/api-overview.md)
+- [openapi-governance.md](./04-api/openapi-governance.md)
+
+### 05-engineering
+
+- [development-guide.md](./05-engineering/development-guide.md)
+- [code-style.md](./05-engineering/code-style.md)
+- [commit-convention.md](./05-engineering/commit-convention.md)
+- [plugin-extension.md](./05-engineering/plugin-extension.md)
+
+### 06-delivery
+
+- [project-progress.md](./06-delivery/project-progress.md)
+- [deployment-guide.md](./06-delivery/deployment-guide.md)
+- [known-risks-and-roadmap.md](./06-delivery/known-risks-and-roadmap.md)
+- [ai-provider-integration.md](./06-delivery/ai-provider-integration.md)
+- [synology-drive-adapter.md](./06-delivery/synology-drive-adapter.md)
+
+## 维护约定
+
+- 文档中的角色、权限、接口、表结构以当前仓库实现为准
+- 如果“代码实现”和“OpenAPI / 共享契约”仍有差异，文档必须明确标注，不伪装成一致
+- `.ai/AI_COLLAB_CONTEXT.md` 是本地 AI 协作文档，不纳入公共文档体系

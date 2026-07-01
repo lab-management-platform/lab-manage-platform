@@ -1216,7 +1216,7 @@ export const aiPlugin: PluginManifest = {
               return {
                 body: {
                   reply:
-                    "AI 服务未配置数据库连接，请设置 DATABASE_URL 环境变量。如需使用 AI 功能，请参考 docs/AI_MODULE.md 配置 AI 提供商。",
+                    "AI 服务未配置数据库连接，请设置 DATABASE_URL 环境变量。如需使用 AI 功能，请参考 docs/06-delivery/ai-provider-integration.md 配置 AI 提供商。",
                   sources: []
                 } as ChatResponse
               };
