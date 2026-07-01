@@ -141,7 +141,8 @@ class MemoryCollaborationRepository implements CollaborationRepository {
     return meeting;
   }
 
-  async listProjectRecipientIds(_projectId: string): Promise<string[]> {
+  async listProjectRecipientIds(_: string): Promise<string[]> {
+    void _;
     return ["u-admin", "u-student001"];
   }
 

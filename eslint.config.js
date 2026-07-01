@@ -6,7 +6,15 @@ import prettier from "eslint-config-prettier";
 
 export default [
   {
-    ignores: ["**/dist/**", "**/coverage/**", "node_modules/**"]
+    ignores: [
+      "**/dist/**",
+      "**/coverage/**",
+      "node_modules/**",
+      "apps/web/public/mammoth.browser.min.js",
+      "apps/web/public/pdf.mjs",
+      "apps/web/public/pdf.worker.min.mjs",
+      "apps/web/scripts/**"
+    ]
   },
   js.configs.recommended,
   {

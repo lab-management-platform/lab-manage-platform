@@ -212,10 +212,6 @@ interface TreeNodeWriteRequest {
   collapsed?: boolean;
 }
 
-interface TreeSnapshotCreateRequest {
-  note?: string;
-}
-
 interface ReportUpdateRequest extends CreateProgressRequest {
   status?: "draft" | "submitted" | "reviewed" | "archived";
 }
