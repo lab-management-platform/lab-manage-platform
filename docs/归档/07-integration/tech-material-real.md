@@ -33,15 +33,15 @@
 
 ## 模块映射
 
-| tech-material 模块 | 主仓库落点 | 处理方式 |
-|---|---|---|
-| `auth` / `user` | `packages/core` + `apps/api` | 迁移字段与角色映射，不复用 JWT 实现 |
-| `project` / `project_member` | `plugins/projects` | 迁移数据语义，复用主仓库项目主线 |
-| `task` / `task_comment` | `plugins/projects` | 吸收看板/评论/状态流转细节 |
-| `material` / `stock_record` / `inventory_check` / `application` | `plugins/inventory` | 重点吸收审批与盘点流程 |
-| `meeting` / `announcement` / `notification` | `plugins/collaboration` | 迁移“范围与状态规则”，不保留独立已读逻辑 |
-| `file_record` / `file_folder` | `plugins/files` | 映射文件元数据与目录语义 |
-| `knowledge_doc` / `qa_conversation` | `plugins/ai` | 并入知识库与 AI 对话上下文 |
+| tech-material 模块                                              | 主仓库落点                   | 处理方式                                 |
+| --------------------------------------------------------------- | ---------------------------- | ---------------------------------------- |
+| `auth` / `user`                                                 | `packages/core` + `apps/api` | 迁移字段与角色映射，不复用 JWT 实现      |
+| `project` / `project_member`                                    | `plugins/projects`           | 迁移数据语义，复用主仓库项目主线         |
+| `task` / `task_comment`                                         | `plugins/projects`           | 吸收看板/评论/状态流转细节               |
+| `material` / `stock_record` / `inventory_check` / `application` | `plugins/inventory`          | 重点吸收审批与盘点流程                   |
+| `meeting` / `announcement` / `notification`                     | `plugins/collaboration`      | 迁移“范围与状态规则”，不保留独立已读逻辑 |
+| `file_record` / `file_folder`                                   | `plugins/files`              | 映射文件元数据与目录语义                 |
+| `knowledge_doc` / `qa_conversation`                             | `plugins/ai`                 | 并入知识库与 AI 对话上下文               |
 
 ## 已识别的关键差异
 

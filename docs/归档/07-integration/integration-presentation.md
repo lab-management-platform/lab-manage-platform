@@ -10,11 +10,11 @@
 
 ### 1.1 参与整合的三个子项目
 
-| 项目 | 技术栈 | 核心功能定位 |
-|------|--------|-------------|
-| **实验室管理平台**（本组） | React 19 + Fastify + PostgreSQL 16 + pnpm workspace | 统一工作台：项目管理、物资审批、文件资料、会议通知、AI 知识库 |
-| **SmartWrite-AI** | Next.js 15 + React 18 + Tailwind + TipTap | 在线写作/笔记平台：富文本编辑、自动保存、文档管理 |
-| **tech-material** | Spring Boot 2.7 + MyBatis-Plus + MySQL + Vue 3 + Element Plus | 全栈管理平台：项目、任务、物资、审批、会议、公告、文件、知识问答 |
+| 项目                       | 技术栈                                                        | 核心功能定位                                                     |
+| -------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **实验室管理平台**（本组） | React 19 + Fastify + PostgreSQL 16 + pnpm workspace           | 统一工作台：项目管理、物资审批、文件资料、会议通知、AI 知识库    |
+| **SmartWrite-AI**          | Next.js 15 + React 18 + Tailwind + TipTap                     | 在线写作/笔记平台：富文本编辑、自动保存、文档管理                |
+| **tech-material**          | Spring Boot 2.7 + MyBatis-Plus + MySQL + Vue 3 + Element Plus | 全栈管理平台：项目、任务、物资、审批、会议、公告、文件、知识问答 |
 
 ### 1.2 整合核心目标
 
@@ -166,14 +166,14 @@
 
 ### 3.2 插件边界与职责
 
-| 插件 | Schema | 核心职责 | 整合后增强来源 |
-|------|--------|---------|--------------|
-| `core` | `core` | 账号、会话、审计、迁移 | —（主干能力） |
-| `projects` | `projects` | 项目、成员、任务、项目树、快照、汇报、**笔记** | SmartWrite-AI 编辑器 + tech-material 任务模型 |
-| `inventory` | `inventory` | 物资、申请、审批、流水、**盘点** | tech-material 完整审批链 + 盘点 |
-| `files` | `files` | 文件、版本、项目资料 | tech-material 文件目录语义 |
-| `collaboration` | `collaboration` | 会议、通知、公告 | tech-material 项目定向 + 已读粒度 |
-| `ai` | `ai` | 知识库、问答、FAQ | SmartWrite-AI 编辑体验 + tech-material 知识问答 |
+| 插件            | Schema          | 核心职责                                       | 整合后增强来源                                  |
+| --------------- | --------------- | ---------------------------------------------- | ----------------------------------------------- |
+| `core`          | `core`          | 账号、会话、审计、迁移                         | —（主干能力）                                   |
+| `projects`      | `projects`      | 项目、成员、任务、项目树、快照、汇报、**笔记** | SmartWrite-AI 编辑器 + tech-material 任务模型   |
+| `inventory`     | `inventory`     | 物资、申请、审批、流水、**盘点**               | tech-material 完整审批链 + 盘点                 |
+| `files`         | `files`         | 文件、版本、项目资料                           | tech-material 文件目录语义                      |
+| `collaboration` | `collaboration` | 会议、通知、公告                               | tech-material 项目定向 + 已读粒度               |
+| `ai`            | `ai`            | 知识库、问答、FAQ                              | SmartWrite-AI 编辑体验 + tech-material 知识问答 |
 
 ---
 
@@ -265,13 +265,13 @@ CREATE TABLE projects.project_note (
 
 ### 5.2 已落地的首批统一接口（项目笔记）
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/projects/:id/notes` | 获取项目下全部笔记列表 |
-| `POST` | `/projects/:id/notes` | 新建项目笔记（支持 frontmatter 元数据） |
-| `GET` | `/projects/:id/notes/:noteId` | 获取单篇笔记详情 |
-| `PATCH` | `/projects/:id/notes/:noteId` | 更新笔记内容与元数据 |
-| `DELETE` | `/projects/:id/notes/:noteId` | 删除笔记（按项目权限） |
+| 方法     | 路径                          | 说明                                    |
+| -------- | ----------------------------- | --------------------------------------- |
+| `GET`    | `/projects/:id/notes`         | 获取项目下全部笔记列表                  |
+| `POST`   | `/projects/:id/notes`         | 新建项目笔记（支持 frontmatter 元数据） |
+| `GET`    | `/projects/:id/notes/:noteId` | 获取单篇笔记详情                        |
+| `PATCH`  | `/projects/:id/notes/:noteId` | 更新笔记内容与元数据                    |
+| `DELETE` | `/projects/:id/notes/:noteId` | 删除笔记（按项目权限）                  |
 
 ### 5.3 接口收口矩阵（核心部分）
 
@@ -354,29 +354,29 @@ CREATE TABLE projects.project_note (
 
 ### 7.1 文档编辑 → Notion
 
-| 参考来源 | 吸收点 |
-|---------|--------|
+| 参考来源                                                                                 | 吸收点                                             |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------- |
 | [Notion Writing & Editing Basics](https://www.notion.so/help/writing-and-editing-basics) | 文档带类型/作者/时间属性；以工作上下文组织而非散页 |
-| [Notion Database Properties](https://www.notion.so/help/database-properties) | 笔记元数据结构化（title/type/tags/status） |
+| [Notion Database Properties](https://www.notion.so/help/database-properties)             | 笔记元数据结构化（title/type/tags/status）         |
 
 ### 7.2 笔记工作台 → Obsidian
 
-| 参考来源 | 吸收点 |
-|---------|--------|
-| [Obsidian File Explorer](https://help.obsidian.md/plugins/file-explorer) | 左侧文件浏览器 + 固定筛选头 + 可滚动列表 |
-| [Obsidian Workspaces](https://help.obsidian.md/plugins/workspaces) | 三栏工作台布局；二级页面编辑器 |
-| [Obsidian Backlinks](https://help.obsidian.md/plugins/backlinks) | `[[内部链接]]` + 反向提及面板 + 文章内直接跳转 |
+| 参考来源                                                                 | 吸收点                                         |
+| ------------------------------------------------------------------------ | ---------------------------------------------- |
+| [Obsidian File Explorer](https://help.obsidian.md/plugins/file-explorer) | 左侧文件浏览器 + 固定筛选头 + 可滚动列表       |
+| [Obsidian Workspaces](https://help.obsidian.md/plugins/workspaces)       | 三栏工作台布局；二级页面编辑器                 |
+| [Obsidian Backlinks](https://help.obsidian.md/plugins/backlinks)         | `[[内部链接]]` + 反向提及面板 + 文章内直接跳转 |
 
 ### 7.3 交互规范 → Atlassian Design System
 
-| 参考来源 | 吸收点 |
-|---------|--------|
+| 参考来源                                                    | 吸收点                                      |
+| ----------------------------------------------------------- | ------------------------------------------- |
 | [Atlassian Components](https://atlassian.design/components) | 管理台动作层级；主/次操作区分；稳定组件语义 |
 
 ### 7.4 项目管理 → Linear Method
 
-| 参考来源 | 吸收点 |
-|---------|--------|
+| 参考来源                                   | 吸收点                                       |
+| ------------------------------------------ | -------------------------------------------- |
 | [Linear Method](https://linear.app/method) | 项目明确负责人；列表快速扫描；减少空模板负担 |
 
 ---
@@ -421,13 +421,13 @@ CREATE TABLE projects.project_note (
 
 ### 9.1 已识别的关键风险
 
-| 风险 | 来源 | 应对策略 |
-|------|------|---------|
-| 硬编码数据库密码 | tech-material | 整合前标记废弃，不进入主仓库公共配置 |
-| 明文 JWT secret | tech-material | 迁移后使用主仓库统一密钥管理 |
-| 过粗角色模型 | tech-material (3 级) | 映射到主仓库 6 级角色体系 |
-| 文件系统存储 | SmartWrite-AI (.data/*.json) | 全部迁移至 PostgreSQL + NAS/storage provider |
-| 双平台长期并存 | 不整合直接接入 | 明确"迁移后废弃原运行时"原则 |
+| 风险             | 来源                          | 应对策略                                     |
+| ---------------- | ----------------------------- | -------------------------------------------- |
+| 硬编码数据库密码 | tech-material                 | 整合前标记废弃，不进入主仓库公共配置         |
+| 明文 JWT secret  | tech-material                 | 迁移后使用主仓库统一密钥管理                 |
+| 过粗角色模型     | tech-material (3 级)          | 映射到主仓库 6 级角色体系                    |
+| 文件系统存储     | SmartWrite-AI (.data/\*.json) | 全部迁移至 PostgreSQL + NAS/storage provider |
+| 双平台长期并存   | 不整合直接接入                | 明确"迁移后废弃原运行时"原则                 |
 
 ### 9.2 整合前置安全检查清单
 
