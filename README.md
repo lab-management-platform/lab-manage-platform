@@ -1,11 +1,11 @@
 # 实验室管理平台
 
-实验室管理平台是一个面向高校实验室的项目制协作系统，以“项目 / 课题组”为主线串联账号权限、项目管理、耗材管理、文件资料、会议通知和 AI 助手。当前仓库采用 Monorepo 结构，后续跨组整合将以本仓库为主干进行能力扩展或重构。
+实验室管理平台是一个面向高校实验室的项目制协作系统，以“项目 / 课题组”为主线串联账号权限、项目管理、物资管理、文件资料、会议通知和 AI 助手。当前仓库采用 Monorepo 结构，后续跨组整合将以本仓库为主干进行能力扩展或重构。
 
 ## 项目定位
 
 - 面向对象：高校实验室、课题组、实验项目成员
-- 业务主线：项目管理驱动耗材、资料、会议和 AI 协作
+- 业务主线：项目管理驱动物资、资料、会议和 AI 协作
 - 工程目标：用微内核 + 插件化结构承接不同模块和不同技术组的整合
 
 ## 技术栈概览
@@ -58,23 +58,25 @@ docker compose exec api pnpm --filter @lab/api db:migrate
 
 ## 文档入口
 
-完整文档中心见 [docs/README.md](./docs/README.md)。
+完整中文文档中心见 [docs/项目文档/文档中心.md](./docs/项目文档/文档中心.md)。旧版文档已移动到 [docs/归档](./docs/归档)。
 
 建议阅读顺序：
 
-1. [项目总览](./docs/00-overview/project-overview.md)
-2. [项目需求文档](./docs/01-product/product-requirements.md)
-3. [系统架构](./docs/02-architecture/system-architecture.md)
-4. [数据库设计](./docs/03-data/database-design.md)
-5. [API 总览](./docs/04-api/api-overview.md)
-6. [开发指南](./docs/05-engineering/development-guide.md)
+1. [项目总览](./docs/项目文档/01-项目总览.md)
+2. [需求与范围](./docs/项目文档/02-需求与范围.md)
+3. [功能设计](./docs/项目文档/03-功能设计.md)
+4. [角色与权限](./docs/项目文档/04-角色与权限.md)
+5. [技术架构](./docs/项目文档/05-技术架构.md)
+6. [数据库设计](./docs/项目文档/06-数据库设计.md)
+7. [接口与数据契约](./docs/项目文档/08-接口与数据契约.md)
+8. [进度与验收](./docs/项目文档/10-进度与验收.md)
 
 ## 目录概览
 
 ```text
 lab-management-platform-migrate-temp/
 ├── apps/        API 宿主与 Web 前端
-├── docs/        分层项目文档中心
+├── docs/        中文项目文档与历史归档
 ├── infra/       Nginx / PostgreSQL 基础设施配置
 ├── packages/    核心能力与共享契约
 ├── plugins/     业务插件

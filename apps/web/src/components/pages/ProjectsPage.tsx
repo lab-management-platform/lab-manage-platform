@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
 import { IdentityLookupField } from "../projects/IdentityLookupField";
+import { ProjectNotesWorkspace } from "../projects/ProjectNotesWorkspace";
 import { ProjectTreeWorkspace } from "../projects/ProjectTreeWorkspace";
 import {
   identityTypeText,
@@ -14,6 +15,8 @@ import type {
   ProgressReport,
   Project,
   ProjectMember,
+  ProjectNote,
+  ProjectNoteKind,
   ProjectReportDetail,
   ProjectTask,
   ProjectTreeSnapshot,
@@ -26,6 +29,7 @@ interface ProjectsPageProps {
   selectedProjectId: string;
   onSelectProject: (projectId: string) => void;
   tasks: ProjectTask[];
+  projectNotes: ProjectNote[];
   progressReports: ProgressReport[];
   projectTree: ProjectTreeNode[];
   projectTreeSnapshots: ProjectTreeSnapshot[];
@@ -56,6 +60,18 @@ interface ProjectsPageProps {
   ) => Promise<void>;
   onUpdateProjectMember: (projectId: string, userId: string, memberRole: string) => Promise<void>;
   onRemoveProjectMember: (projectId: string, userId: string) => Promise<void>;
+  onCreateProjectNote: (payload: {
+    projectId: string;
+    title: string;
+    content: string;
+    noteKind?: ProjectNoteKind;
+  }) => Promise<ProjectNote | void>;
+  onUpdateProjectNote: (
+    projectId: string,
+    noteId: string,
+    payload: { title?: string; content?: string; noteKind?: ProjectNoteKind }
+  ) => Promise<ProjectNote | void>;
+  onDeleteProjectNote: (projectId: string, noteId: string) => Promise<void>;
   onSaveProjectTree: (
     projectId: string,
     nodes: Array<{
@@ -151,6 +167,7 @@ export function ProjectsPage({
   selectedProjectId,
   onSelectProject,
   tasks,
+  projectNotes,
   progressReports,
   projectTree,
   projectTreeSnapshots,
@@ -163,6 +180,9 @@ export function ProjectsPage({
   onAddProjectMember,
   onUpdateProjectMember,
   onRemoveProjectMember,
+  onCreateProjectNote,
+  onUpdateProjectNote,
+  onDeleteProjectNote,
   onSaveProjectTree,
   onCreateProjectTreeSnapshot,
   onCreateProjectReport,
@@ -208,6 +228,7 @@ export function ProjectsPage({
   >([]);
   const [treeFlipped, setTreeFlipped] = useState(false);
   const [treeWorkspaceOpen, setTreeWorkspaceOpen] = useState(false);
+  const [noteWorkspaceOpen, setNoteWorkspaceOpen] = useState(false);
 
   useEffect(() => {
     setReportMemberDraft(
@@ -230,6 +251,8 @@ export function ProjectsPage({
     currentMember?.memberRole === "advisor";
   const canManageMembers =
     actor.permissions.includes("project:write") || currentMember?.memberRole === "advisor";
+  const canWriteNotes =
+    Boolean(activeProject) && Boolean(currentMember || actor.permissions.includes("project:write"));
   const treeStats = useMemo(
     () => ({
       done: projectTree.filter((node) => node.status === "done").length,
@@ -455,7 +478,19 @@ export function ProjectsPage({
           />
         ) : null}
 
-        {!treeWorkspaceOpen ? (
+        {activeProject && noteWorkspaceOpen && !treeWorkspaceOpen ? (
+          <ProjectNotesWorkspace
+            project={activeProject}
+            notes={projectNotes}
+            canWrite={canWriteNotes}
+            onExit={() => setNoteWorkspaceOpen(false)}
+            onCreateNote={onCreateProjectNote}
+            onUpdateNote={onUpdateProjectNote}
+            onDeleteNote={onDeleteProjectNote}
+          />
+        ) : null}
+
+        {!treeWorkspaceOpen && !noteWorkspaceOpen ? (
           <>
             <SectionCard
               title={activeProject?.name ?? "项目详情"}
@@ -634,6 +669,70 @@ export function ProjectsPage({
                       )}
                     </div>
                   </article>
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="项目笔记"
+              eyebrow="Project Notes"
+              extra={
+                <div className="row-inline">
+                  <span className="panel-tag">Obsidian 风格二级工作台</span>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setNoteWorkspaceOpen(true)}
+                  >
+                    进入笔记工作台
+                  </button>
+                </div>
+              }
+            >
+              {!activeProject ? (
+                <EmptyState title="尚未选择项目" text="选定项目后即可查看该项目的笔记与草稿。" />
+              ) : (
+                <div className="notes-preview-grid">
+                  <article className="detail-card notes-preview-card">
+                    <strong>笔记工作区</strong>
+                    <p>
+                      把项目速记、会议纪要、汇报草稿和知识草稿放到二级工作台里处理，避免在一级页和任务、汇报区互相抢空间。
+                    </p>
+                    <div className="notes-meta-strip">
+                      <span>{projectNotes.length} 篇笔记</span>
+                      <span>支持 `[[笔记名]]` 内部链接</span>
+                      <span>左栏浏览器 + 中央编辑器 + 右栏关联信息</span>
+                    </div>
+                  </article>
+
+                  <div className="data-list compact">
+                    {projectNotes.length === 0 ? (
+                      <EmptyState
+                        title="暂无项目笔记"
+                        text="进入工作台后可以新建速记、会议纪要和汇报草稿。"
+                      />
+                    ) : (
+                      projectNotes.slice(0, 3).map((note) => (
+                        <article key={note.id} className="note-preview-item">
+                          <div className="row-inline spread">
+                            <strong>{note.title}</strong>
+                            <StatusBadge tone="active">{note.authorName}</StatusBadge>
+                          </div>
+                          <small>
+                            {new Date(note.updatedAt).toLocaleString("zh-CN", {
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit"
+                            })}
+                          </small>
+                          <p>
+                            {note.content.replace(/\s+/g, " ").trim().slice(0, 80) || "暂无内容。"}
+                          </p>
+                        </article>
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
             </SectionCard>

@@ -18,6 +18,7 @@ import type {
   ProgressReport,
   Project,
   ProjectMember,
+  ProjectNote,
   ProjectReportDetail,
   ProjectTask,
   ProjectTreeSnapshot,
@@ -60,6 +61,7 @@ export function useLabData(token: string, actor: Actor | null) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectTasks, setProjectTasks] = useState<ProjectTask[]>([]);
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const [projectNotes, setProjectNotes] = useState<ProjectNote[]>([]);
   const [progressReports, setProgressReports] = useState<ProgressReport[]>([]);
   const [projectTree, setProjectTree] = useState<ProjectTreeNode[]>([]);
   const [projectTreeSnapshots, setProjectTreeSnapshots] = useState<ProjectTreeSnapshot[]>([]);
@@ -146,6 +148,7 @@ export function useLabData(token: string, actor: Actor | null) {
     if (!token || !projectId) {
       setProjectTasks([]);
       setProjectMembers([]);
+      setProjectNotes([]);
       setProgressReports([]);
       setProjectTree([]);
       setProjectTreeSnapshots([]);
@@ -154,26 +157,31 @@ export function useLabData(token: string, actor: Actor | null) {
     }
 
     const headers = toAuthorization(token);
-    const [tasksData, membersData, progressData, treeData, treeHistoryData] = await Promise.all([
-      fetch(`${apiBase}/projects/${projectId}/tasks`, { headers }).then(
-        parseResponse<ProjectTask[]>
-      ),
-      fetch(`${apiBase}/projects/${projectId}/members`, { headers }).then(
-        parseResponse<ProjectMember[]>
-      ),
-      fetch(`${apiBase}/projects/${projectId}/progress`, { headers }).then(
-        parseResponse<ProgressReport[]>
-      ),
-      fetch(`${apiBase}/projects/${projectId}/tree`, { headers }).then(
-        parseResponse<ProjectTreeNode[]>
-      ),
-      fetch(`${apiBase}/projects/${projectId}/tree/history`, { headers }).then(
-        parseResponse<ProjectTreeSnapshot[]>
-      )
-    ]);
+    const [tasksData, membersData, notesData, progressData, treeData, treeHistoryData] =
+      await Promise.all([
+        fetch(`${apiBase}/projects/${projectId}/tasks`, { headers }).then(
+          parseResponse<ProjectTask[]>
+        ),
+        fetch(`${apiBase}/projects/${projectId}/members`, { headers }).then(
+          parseResponse<ProjectMember[]>
+        ),
+        fetch(`${apiBase}/projects/${projectId}/notes`, { headers }).then(
+          parseResponse<ProjectNote[]>
+        ),
+        fetch(`${apiBase}/projects/${projectId}/progress`, { headers }).then(
+          parseResponse<ProgressReport[]>
+        ),
+        fetch(`${apiBase}/projects/${projectId}/tree`, { headers }).then(
+          parseResponse<ProjectTreeNode[]>
+        ),
+        fetch(`${apiBase}/projects/${projectId}/tree/history`, { headers }).then(
+          parseResponse<ProjectTreeSnapshot[]>
+        )
+      ]);
 
     setProjectTasks(tasksData);
     setProjectMembers(membersData);
+    setProjectNotes(notesData);
     setProgressReports(progressData);
     setProjectTree(treeData);
     setProjectTreeSnapshots(treeHistoryData);
@@ -228,6 +236,7 @@ export function useLabData(token: string, actor: Actor | null) {
     projects,
     projectTasks,
     projectMembers,
+    projectNotes,
     progressReports,
     projectTree,
     projectTreeSnapshots,
@@ -584,6 +593,50 @@ export function useLabData(token: string, actor: Actor | null) {
         headers: toAuthorization(token)
       }).then(parseResponse<{ ok: true }>);
       setMessage("项目成员已移除。");
+      await loadProjectWorkspace(projectId);
+    },
+    async createProjectNote(payload: {
+      projectId: string;
+      title: string;
+      content: string;
+      noteKind?: "project_note" | "meeting_minutes" | "report_draft" | "knowledge_draft";
+    }) {
+      if (!token) return;
+      const note = await fetch(`${apiBase}/projects/${payload.projectId}/notes`, {
+        method: "POST",
+        headers: toAuthorization(token),
+        body: JSON.stringify(payload)
+      }).then(parseResponse<ProjectNote>);
+      setMessage("项目笔记已创建。");
+      await loadProjectWorkspace(payload.projectId);
+      return note;
+    },
+    async updateProjectNote(
+      projectId: string,
+      noteId: string,
+      payload: {
+        title?: string;
+        content?: string;
+        noteKind?: "project_note" | "meeting_minutes" | "report_draft" | "knowledge_draft";
+      }
+    ) {
+      if (!token) return;
+      const note = await fetch(`${apiBase}/projects/${projectId}/notes/${noteId}`, {
+        method: "PATCH",
+        headers: toAuthorization(token),
+        body: JSON.stringify(payload)
+      }).then(parseResponse<ProjectNote>);
+      setMessage("项目笔记已保存。");
+      await loadProjectWorkspace(projectId);
+      return note;
+    },
+    async deleteProjectNote(projectId: string, noteId: string) {
+      if (!token) return;
+      await fetch(`${apiBase}/projects/${projectId}/notes/${noteId}`, {
+        method: "DELETE",
+        headers: toAuthorization(token)
+      }).then(parseResponse<{ ok: true }>);
+      setMessage("项目笔记已删除。");
       await loadProjectWorkspace(projectId);
     },
     async saveProjectTree(

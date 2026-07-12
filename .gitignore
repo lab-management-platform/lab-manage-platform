@@ -45,6 +45,16 @@ coverage/
 CLAUDE.md
 .ai/
 
+# Local presentation / temporary coordination materials
+cdl/
+docs/07-integration/joint-teacher-brief.md
+docs/07-integration/integration-presentation.md
+docs/07-integration/speaking-script.md
+docs/07-integration/teacher-demo-order.md
+docs/07-integration/teacher-brief-5min.md
+docs/07-integration/teacher-brief-2min.md
+docs/07-integration/temp.md
+
 # Temp files
 *.tmp
 *.temp

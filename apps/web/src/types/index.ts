@@ -275,6 +275,25 @@ export interface ProjectMember {
   joinedAt: string;
 }
 
+export type ProjectNoteKind =
+  | "project_note"
+  | "meeting_minutes"
+  | "report_draft"
+  | "knowledge_draft";
+
+export interface ProjectNote {
+  id: string;
+  projectId: string;
+  title: string;
+  content: string;
+  noteKind: ProjectNoteKind;
+  authorId: string;
+  authorName: string;
+  authorIdentityNo?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ProgressReport {
   id: string;
   projectId: string;

@@ -7,6 +7,7 @@ type ProjectStatus = "pending" | "active" | "archived" | "completed";
 type TaskStatus = "todo" | "in_progress" | "review" | "done";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
 type MemberRole = "owner" | "leader" | "member" | "advisor" | "observer";
+type ProjectNoteKind = "project_note" | "meeting_minutes" | "report_draft" | "knowledge_draft";
 
 interface Project {
   id: string;
@@ -64,6 +65,19 @@ interface ProjectMember {
   identityNo: string;
   memberRole: MemberRole;
   joinedAt: string;
+}
+
+interface ProjectNote {
+  id: string;
+  projectId: string;
+  title: string;
+  content: string;
+  noteKind: ProjectNoteKind;
+  authorId: string;
+  authorName: string;
+  authorIdentityNo?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface ProgressReport {
@@ -216,6 +230,12 @@ interface ReportUpdateRequest extends CreateProgressRequest {
   status?: "draft" | "submitted" | "reviewed" | "archived";
 }
 
+interface ProjectNoteWriteRequest {
+  title?: string;
+  content?: string;
+  noteKind?: ProjectNoteKind;
+}
+
 interface ProjectRepository {
   initialize(): Promise<void>;
   listProjects(): Promise<Project[]>;
@@ -239,6 +259,26 @@ interface ProjectRepository {
   removeMember(projectId: string, userId: string): Promise<void>;
   listMembers(projectId: string): Promise<ProjectMember[]>;
   findMember(projectId: string, userId: string): Promise<ProjectMember | null>;
+  listNotes(projectId: string): Promise<ProjectNote[]>;
+  getNote(projectId: string, noteId: string): Promise<ProjectNote | null>;
+  createNote(input: Omit<ProjectNote, "id" | "createdAt" | "updatedAt">): Promise<ProjectNote>;
+  updateNote(
+    projectId: string,
+    noteId: string,
+    input: Partial<
+      Omit<
+        ProjectNote,
+        | "id"
+        | "projectId"
+        | "authorId"
+        | "authorName"
+        | "authorIdentityNo"
+        | "createdAt"
+        | "updatedAt"
+      >
+    >
+  ): Promise<ProjectNote | null>;
+  removeNote(projectId: string, noteId: string): Promise<void>;
   listProgress(projectId: string): Promise<ProgressReport[]>;
   createProgress(
     projectId: string,
@@ -374,10 +414,40 @@ const seedTreeNodes: ProjectTreeNode[] = [
   }
 ];
 
+const seedNotes: ProjectNote[] = [
+  {
+    id: "note-001",
+    projectId: "proj-001",
+    title: "文献调研速记",
+    content:
+      "先对近三年 Hela 细胞培养文献做配方分类，按血清浓度、基础培养基、添加因子三列整理。第二阶段再把可复现实验条件整理成周会纪要草稿。",
+    noteKind: "project_note",
+    authorId: "u-student001",
+    authorName: "学生一号",
+    authorIdentityNo: "STU-001",
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString()
+  },
+  {
+    id: "note-002",
+    projectId: "proj-001",
+    title: "周会纪要草稿",
+    content:
+      "1. 已完成现有培养基文献归档。2. 下周需要确认三组梯度条件。3. 导师建议同步记录实验风险与设备预约窗口。",
+    noteKind: "meeting_minutes",
+    authorId: "u-prof001",
+    authorName: "张教授",
+    authorIdentityNo: "EMP-PROF-001",
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString()
+  }
+];
+
 class MemoryProjectRepository implements ProjectRepository {
   private readonly projects = structuredClone(seedProjects);
   private readonly tasks = structuredClone(seedTasks);
   private readonly treeNodes = structuredClone(seedTreeNodes);
+  private readonly notes = structuredClone(seedNotes);
   private readonly treeSnapshots: ProjectTreeSnapshot[] = [];
   private readonly reportMemberWork: ProjectReportMemberWork[] = [];
   private readonly comments: TaskComment[] = [];
@@ -513,6 +583,69 @@ class MemoryProjectRepository implements ProjectRepository {
       this.members.find((member) => member.projectId === projectId && member.userId === userId) ??
       null
     );
+  }
+
+  async listNotes(projectId: string): Promise<ProjectNote[]> {
+    return this.notes
+      .filter((note) => note.projectId === projectId)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
+
+  async getNote(projectId: string, noteId: string): Promise<ProjectNote | null> {
+    return this.notes.find((note) => note.projectId === projectId && note.id === noteId) ?? null;
+  }
+
+  async createNote(
+    input: Omit<ProjectNote, "id" | "createdAt" | "updatedAt">
+  ): Promise<ProjectNote> {
+    const now = new Date().toISOString();
+    const note: ProjectNote = {
+      ...input,
+      id: randomUUID(),
+      createdAt: now,
+      updatedAt: now
+    };
+    this.notes.unshift(note);
+    return note;
+  }
+
+  async updateNote(
+    projectId: string,
+    noteId: string,
+    input: Partial<
+      Omit<
+        ProjectNote,
+        | "id"
+        | "projectId"
+        | "authorId"
+        | "authorName"
+        | "authorIdentityNo"
+        | "createdAt"
+        | "updatedAt"
+      >
+    >
+  ): Promise<ProjectNote | null> {
+    const index = this.notes.findIndex(
+      (note) => note.projectId === projectId && note.id === noteId
+    );
+    if (index === -1) {
+      return null;
+    }
+    this.notes[index] = {
+      ...this.notes[index],
+      ...input,
+      updatedAt: new Date().toISOString()
+    };
+    return this.notes[index];
+  }
+
+  async removeNote(projectId: string, noteId: string): Promise<void> {
+    const index = this.notes.findIndex(
+      (note) => note.projectId === projectId && note.id === noteId
+    );
+    if (index !== -1) {
+      this.notes.splice(index, 1);
+    }
   }
 
   async listProgress(projectId: string): Promise<ProgressReport[]> {
@@ -683,6 +816,23 @@ class PostgresProjectRepository implements ProjectRepository {
 
       ALTER TABLE projects.project_member ADD CONSTRAINT project_member_member_role_check
         CHECK (member_role IN ('owner','leader','member','advisor','observer'));
+
+      CREATE TABLE IF NOT EXISTS projects.project_note (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects.project(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        note_kind TEXT NOT NULL DEFAULT 'project_note'
+          CHECK (note_kind IN ('project_note', 'meeting_minutes', 'report_draft', 'knowledge_draft')),
+        author_id TEXT NOT NULL,
+        author_name TEXT NOT NULL DEFAULT '',
+        author_identity_no TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
+      CREATE INDEX IF NOT EXISTS project_note_project_idx
+        ON projects.project_note(project_id, updated_at DESC);
 
       CREATE TABLE IF NOT EXISTS projects.progress_report (
         id TEXT PRIMARY KEY,
@@ -896,6 +1046,32 @@ class PostgresProjectRepository implements ProjectRepository {
             node.collapsed,
             node.createdAt,
             node.updatedAt
+          ]
+        );
+      }
+    }
+
+    const noteCount = await this.pool.query<{ count: string }>(
+      "SELECT COUNT(*) AS count FROM projects.project_note"
+    );
+    if (Number(noteCount.rows[0]?.count ?? 0) === 0) {
+      for (const note of seedNotes) {
+        await this.pool.query(
+          `INSERT INTO projects.project_note (
+            id, project_id, title, content, note_kind, author_id, author_name, author_identity_no,
+            created_at, updated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [
+            note.id,
+            note.projectId,
+            note.title,
+            note.content,
+            note.noteKind,
+            note.authorId,
+            note.authorName,
+            note.authorIdentityNo ?? null,
+            note.createdAt,
+            note.updatedAt
           ]
         );
       }
@@ -1173,6 +1349,100 @@ class PostgresProjectRepository implements ProjectRepository {
       [projectId, userId]
     );
     return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
+  }
+
+  async listNotes(projectId: string): Promise<ProjectNote[]> {
+    const result = await this.pool.query(
+      "SELECT * FROM projects.project_note WHERE project_id = $1 ORDER BY updated_at DESC, created_at DESC",
+      [projectId]
+    );
+    return result.rows.map(mapProjectNoteRow);
+  }
+
+  async getNote(projectId: string, noteId: string): Promise<ProjectNote | null> {
+    const result = await this.pool.query(
+      "SELECT * FROM projects.project_note WHERE project_id = $1 AND id = $2",
+      [projectId, noteId]
+    );
+    return result.rows[0] ? mapProjectNoteRow(result.rows[0]) : null;
+  }
+
+  async createNote(
+    input: Omit<ProjectNote, "id" | "createdAt" | "updatedAt">
+  ): Promise<ProjectNote> {
+    const result = await this.pool.query(
+      `INSERT INTO projects.project_note (
+        id, project_id, title, content, note_kind, author_id, author_name, author_identity_no
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [
+        randomUUID(),
+        input.projectId,
+        input.title,
+        input.content,
+        input.noteKind,
+        input.authorId,
+        input.authorName,
+        input.authorIdentityNo ?? null
+      ]
+    );
+    return mapProjectNoteRow(result.rows[0]);
+  }
+
+  async updateNote(
+    projectId: string,
+    noteId: string,
+    input: Partial<
+      Omit<
+        ProjectNote,
+        | "id"
+        | "projectId"
+        | "authorId"
+        | "authorName"
+        | "authorIdentityNo"
+        | "createdAt"
+        | "updatedAt"
+      >
+    >
+  ): Promise<ProjectNote | null> {
+    const entries = Object.entries(input).filter(([, value]) => value !== undefined);
+    if (entries.length === 0) {
+      return this.getNote(projectId, noteId);
+    }
+
+    const columns: Record<string, string> = {
+      title: "title",
+      content: "content",
+      noteKind: "note_kind"
+    };
+    const sets = ["updated_at = now()"];
+    const values: unknown[] = [projectId, noteId];
+    let index = 3;
+
+    for (const [key, value] of entries) {
+      const column = columns[key];
+      if (!column) {
+        continue;
+      }
+      sets.push(`${column} = $${index}`);
+      values.push(value);
+      index += 1;
+    }
+
+    const result = await this.pool.query(
+      `UPDATE projects.project_note
+       SET ${sets.join(", ")}
+       WHERE project_id = $1 AND id = $2
+       RETURNING *`,
+      values
+    );
+    return result.rows[0] ? mapProjectNoteRow(result.rows[0]) : null;
+  }
+
+  async removeNote(projectId: string, noteId: string): Promise<void> {
+    await this.pool.query("DELETE FROM projects.project_note WHERE project_id = $1 AND id = $2", [
+      projectId,
+      noteId
+    ]);
   }
 
   async listProgress(projectId: string): Promise<ProgressReport[]> {
@@ -1458,6 +1728,21 @@ function mapMemberRow(row: Record<string, unknown>): ProjectMember {
   };
 }
 
+function mapProjectNoteRow(row: Record<string, unknown>): ProjectNote {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    title: String(row.title),
+    content: String(row.content ?? ""),
+    noteKind: String(row.note_kind) as ProjectNoteKind,
+    authorId: String(row.author_id),
+    authorName: String(row.author_name),
+    authorIdentityNo: row.author_identity_no ? String(row.author_identity_no) : undefined,
+    createdAt: new Date(String(row.created_at)).toISOString(),
+    updatedAt: new Date(String(row.updated_at)).toISOString()
+  };
+}
+
 function mapProgressRow(row: Record<string, unknown>): ProgressReport {
   return {
     id: String(row.id),
@@ -1585,6 +1870,18 @@ function canSelfUpdateTask(actor: Actor, task: ProjectTask, member: ProjectMembe
   return actor.role === "student" && member !== null && task.assigneeId === actor.id;
 }
 
+function canEditProjectNote(
+  actor: Actor,
+  note: ProjectNote,
+  member: ProjectMember | null
+): boolean {
+  return (
+    isPrivilegedRole(actor) ||
+    ["owner", "advisor"].includes(member?.memberRole ?? "") ||
+    note.authorId === actor.id
+  );
+}
+
 function normalizeProjectMember(
   user: ManagedUser,
   projectId: string,
@@ -1625,6 +1922,36 @@ export const projectsPlugin: PluginManifest = {
     { method: "POST", path: "/projects/:id/members", summary: "添加项目成员" },
     { method: "PATCH", path: "/projects/:id/members/:userId", summary: "更新项目成员角色" },
     { method: "DELETE", path: "/projects/:id/members/:userId", summary: "移除项目成员" },
+    {
+      method: "GET",
+      path: "/projects/:id/notes",
+      permission: "project:read",
+      summary: "获取项目笔记列表"
+    },
+    {
+      method: "GET",
+      path: "/projects/:id/notes/:noteId",
+      permission: "project:read",
+      summary: "获取项目笔记详情"
+    },
+    {
+      method: "POST",
+      path: "/projects/:id/notes",
+      permission: "project:read",
+      summary: "创建项目笔记"
+    },
+    {
+      method: "PATCH",
+      path: "/projects/:id/notes/:noteId",
+      permission: "project:read",
+      summary: "更新项目笔记"
+    },
+    {
+      method: "DELETE",
+      path: "/projects/:id/notes/:noteId",
+      permission: "project:read",
+      summary: "删除项目笔记"
+    },
     {
       method: "GET",
       path: "/projects/:id/tree",
@@ -2100,6 +2427,129 @@ export const projectsPlugin: PluginManifest = {
               return { status: 400, body: { error: "不能直接移除负责人或导师，请先更换角色" } };
             }
             await repo.removeMember(params.id, params.userId);
+            return { body: { ok: true } };
+          }
+        },
+        {
+          method: "GET",
+          path: "/projects/:id/notes",
+          permission: "project:read",
+          summary: "获取项目笔记列表",
+          handler: async ({ actor, params }) => {
+            const denied = await ensureReadable(actor, params.id);
+            return denied ?? { body: await repo.listNotes(params.id) };
+          }
+        },
+        {
+          method: "GET",
+          path: "/projects/:id/notes/:noteId",
+          permission: "project:read",
+          summary: "获取项目笔记详情",
+          handler: async ({ actor, params }) => {
+            const denied = await ensureReadable(actor, params.id);
+            if (denied) {
+              return denied;
+            }
+            const note = await repo.getNote(params.id, params.noteId);
+            return note ? { body: note } : { status: 404, body: { error: "笔记未找到" } };
+          }
+        },
+        {
+          method: "POST",
+          path: "/projects/:id/notes",
+          permission: "project:read",
+          summary: "创建项目笔记",
+          handler: async ({ actor, params, body }) => {
+            const denied = await ensureReadable(actor, params.id);
+            if (denied) {
+              return denied;
+            }
+            const req = body as ProjectNoteWriteRequest;
+            if (!req.title?.trim()) {
+              return { status: 400, body: { error: "笔记标题不能为空" } };
+            }
+            const note = await repo.createNote({
+              projectId: params.id,
+              title: req.title.trim(),
+              content: req.content?.trim() ?? "",
+              noteKind: req.noteKind ?? "project_note",
+              authorId: actor!.id,
+              authorName: actor!.displayName ?? actor!.username ?? actor!.id,
+              authorIdentityNo:
+                (await context.auth.getUserProfile?.(actor!.id))?.identityNo ?? undefined
+            });
+            await context.eventBus.publish(
+              createDomainEvent("projects", "projects.note.created", {
+                projectId: params.id,
+                noteId: note.id,
+                noteKind: note.noteKind
+              })
+            );
+            return { status: 201, body: note };
+          }
+        },
+        {
+          method: "PATCH",
+          path: "/projects/:id/notes/:noteId",
+          permission: "project:read",
+          summary: "更新项目笔记",
+          handler: async ({ actor, params, body }) => {
+            const denied = await ensureReadable(actor, params.id);
+            if (denied) {
+              return denied;
+            }
+            const note = await repo.getNote(params.id, params.noteId);
+            if (!note) {
+              return { status: 404, body: { error: "笔记未找到" } };
+            }
+            const member = actor ? await repo.findMember(params.id, actor.id) : null;
+            if (!actor || !canEditProjectNote(actor, note, member)) {
+              return { status: 403, body: { error: "无权编辑该笔记" } };
+            }
+            const req = body as ProjectNoteWriteRequest;
+            const updated = await repo.updateNote(params.id, params.noteId, {
+              title: req.title?.trim(),
+              content: req.content?.trim(),
+              noteKind: req.noteKind
+            });
+            if (!updated) {
+              return { status: 404, body: { error: "笔记未找到" } };
+            }
+            await context.eventBus.publish(
+              createDomainEvent("projects", "projects.note.updated", {
+                projectId: params.id,
+                noteId: updated.id,
+                noteKind: updated.noteKind
+              })
+            );
+            return { body: updated };
+          }
+        },
+        {
+          method: "DELETE",
+          path: "/projects/:id/notes/:noteId",
+          permission: "project:read",
+          summary: "删除项目笔记",
+          handler: async ({ actor, params }) => {
+            const denied = await ensureReadable(actor, params.id);
+            if (denied) {
+              return denied;
+            }
+            const note = await repo.getNote(params.id, params.noteId);
+            if (!note) {
+              return { status: 404, body: { error: "笔记未找到" } };
+            }
+            const member = actor ? await repo.findMember(params.id, actor.id) : null;
+            if (!actor || !canEditProjectNote(actor, note, member)) {
+              return { status: 403, body: { error: "无权删除该笔记" } };
+            }
+            await repo.removeNote(params.id, params.noteId);
+            await context.eventBus.publish(
+              createDomainEvent("projects", "projects.note.deleted", {
+                projectId: params.id,
+                noteId: params.noteId
+              })
+            );
             return { body: { ok: true } };
           }
         },
