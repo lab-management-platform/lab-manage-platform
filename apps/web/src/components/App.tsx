@@ -213,6 +213,7 @@ export function App() {
                 await lab.loadProjectWorkspace(projectId);
               }}
               tasks={lab.projectTasks}
+              projectNotes={lab.projectNotes}
               progressReports={lab.progressReports}
               projectTree={lab.projectTree}
               projectTreeSnapshots={lab.projectTreeSnapshots}
@@ -225,6 +226,9 @@ export function App() {
               onAddProjectMember={lab.addProjectMember}
               onUpdateProjectMember={lab.updateProjectMember}
               onRemoveProjectMember={lab.removeProjectMember}
+              onCreateProjectNote={lab.createProjectNote}
+              onUpdateProjectNote={lab.updateProjectNote}
+              onDeleteProjectNote={lab.deleteProjectNote}
               onSaveProjectTree={lab.saveProjectTree}
               onCreateProjectTreeSnapshot={lab.createProjectTreeSnapshot}
               onCreateProjectReport={lab.createProjectReport}

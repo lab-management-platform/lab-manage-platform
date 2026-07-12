@@ -68,6 +68,7 @@ docker compose exec api pnpm --filter @lab/api db:migrate
 4. [数据库设计](./docs/03-data/database-design.md)
 5. [API 总览](./docs/04-api/api-overview.md)
 6. [开发指南](./docs/05-engineering/development-guide.md)
+7. [跨组整合专题](./docs/07-integration/README.md)
 
 ## 目录概览
 

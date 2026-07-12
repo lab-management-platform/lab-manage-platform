@@ -52,7 +52,7 @@ export interface ManagedUser {
 export interface ProjectMember {
   projectId: string;
   userId: string;
-  memberRole: "leader" | "member" | "advisor" | "manager";
+  memberRole: "owner" | "leader" | "member" | "advisor" | "observer";
   joinedAt: string;
 }
 

@@ -43,7 +43,8 @@ docs/
 ├── 03-data/          数据库设计与 ER 图
 ├── 04-api/           API 分组说明与契约治理
 ├── 05-engineering/   开发、代码、提交、扩展规范
-└── 06-delivery/      进度、部署、风险、专题集成说明
+├── 06-delivery/      进度、部署、风险、专题集成说明
+└── 07-integration/   跨组整合专题文档
 ```
 
 ## 文档清单
@@ -91,6 +92,17 @@ docs/
 - [known-risks-and-roadmap.md](./06-delivery/known-risks-and-roadmap.md)
 - [ai-provider-integration.md](./06-delivery/ai-provider-integration.md)
 - [synology-drive-adapter.md](./06-delivery/synology-drive-adapter.md)
+
+### 07-integration
+
+- [README.md](./07-integration/README.md)
+- [integration-overview-real.md](./07-integration/integration-overview-real.md)
+- [cross-repo-field-mapping-matrix.md](./07-integration/cross-repo-field-mapping-matrix.md)
+- [api-consolidation-matrix.md](./07-integration/api-consolidation-matrix.md)
+- [smartwrite-ai-real.md](./07-integration/smartwrite-ai-real.md)
+- [smartwrite-ai-lead-brief.md](./07-integration/smartwrite-ai-lead-brief.md)
+- [tech-material-real.md](./07-integration/tech-material-real.md)
+- [tech-material-lead-brief.md](./07-integration/tech-material-lead-brief.md)
 
 ## 维护约定
 
