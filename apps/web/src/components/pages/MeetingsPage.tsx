@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
 import { meetingStatusText, notificationTypeText, toDatetimeLocal } from "../../utils/helpers";
-import type { Actor, Meeting, NotificationItem, Project } from "../../types";
+import type {
+  Actor,
+  Meeting,
+  MeetingAttendance,
+  MeetingAttendanceStatus,
+  NotificationItem,
+  Project
+} from "../../types";
 
 interface MeetingsPageProps {
   actor: Actor;
   projects: Project[];
   selectedProjectId: string;
   meetings: Meeting[];
+  meetingAttendance: MeetingAttendance[];
   notifications: NotificationItem[];
   onCreateMeeting: (payload: {
     projectId?: string;
@@ -24,6 +32,11 @@ interface MeetingsPageProps {
     summary: string;
     status: "scheduled" | "completed" | "cancelled";
   }) => Promise<void>;
+  onUpdateMeetingAttendance: (payload: {
+    meetingId: string;
+    status: MeetingAttendanceStatus;
+    reason?: string;
+  }) => Promise<void>;
   onPublishAnnouncement: (payload: {
     title: string;
     content: string;
@@ -37,9 +50,11 @@ export function MeetingsPage({
   projects,
   selectedProjectId,
   meetings,
+  meetingAttendance,
   notifications,
   onCreateMeeting,
   onUpdateMeetingMinutes,
+  onUpdateMeetingAttendance,
   onPublishAnnouncement,
   onMarkNotificationRead
 }: MeetingsPageProps) {
@@ -58,6 +73,10 @@ export function MeetingsPage({
     content: "请相关成员按时提交本周实验记录与会议纪要。"
   });
   const [minutesDraft, setMinutesDraft] = useState<Record<string, string>>({});
+  const attendanceMap = useMemo(
+    () => new Map(meetingAttendance.map((item) => [item.meetingId, item])),
+    [meetingAttendance]
+  );
   const projectNameMap = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects]
@@ -105,6 +124,60 @@ export function MeetingsPage({
                     <span>{new Date(meeting.startsAt).toLocaleString("zh-CN")}</span>
                     <span>{meeting.location}</span>
                   </div>
+                  {meeting.participantIds.includes(actor.id) ? (
+                    <div className="meeting-attendance-row">
+                      <span className="panel-tag">
+                        当前反馈：
+                        {attendanceMap.get(meeting.id)?.status === "accepted"
+                          ? "参加"
+                          : attendanceMap.get(meeting.id)?.status === "leave"
+                            ? "请假"
+                            : attendanceMap.get(meeting.id)?.status === "declined"
+                              ? "不参加"
+                              : "待反馈"}
+                      </span>
+                      <button
+                        type="button"
+                        className="tertiary-button"
+                        onClick={() =>
+                          void onUpdateMeetingAttendance({
+                            meetingId: meeting.id,
+                            status: "accepted"
+                          })
+                        }
+                      >
+                        参加
+                      </button>
+                      <button
+                        type="button"
+                        className="tertiary-button"
+                        onClick={() => {
+                          const reason = window.prompt("请输入请假原因") ?? "";
+                          if (reason.trim()) {
+                            void onUpdateMeetingAttendance({
+                              meetingId: meeting.id,
+                              status: "leave",
+                              reason
+                            });
+                          }
+                        }}
+                      >
+                        请假
+                      </button>
+                      <button
+                        type="button"
+                        className="tertiary-button"
+                        onClick={() =>
+                          void onUpdateMeetingAttendance({
+                            meetingId: meeting.id,
+                            status: "declined"
+                          })
+                        }
+                      >
+                        不参加
+                      </button>
+                    </div>
+                  ) : null}
                   {actor.permissions.includes("meeting:write") ? (
                     <form
                       className="meeting-minutes-form"

@@ -288,9 +288,11 @@ export function App() {
               projects={lab.projects}
               selectedProjectId={selectedProjectId}
               meetings={lab.meetings}
+              meetingAttendance={lab.meetingAttendance}
               notifications={lab.notifications}
               onCreateMeeting={lab.createMeeting}
               onUpdateMeetingMinutes={lab.updateMeetingMinutes}
+              onUpdateMeetingAttendance={lab.updateMeetingAttendance}
               onPublishAnnouncement={lab.publishAnnouncement}
               onMarkNotificationRead={lab.markNotificationRead}
             />

@@ -80,6 +80,15 @@ CREATE TABLE IF NOT EXISTS collaboration.meeting (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS collaboration.meeting_attendance (
+  meeting_id TEXT NOT NULL REFERENCES collaboration.meeting(id) ON DELETE CASCADE,
+  actor_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'leave', 'declined')),
+  reason TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (meeting_id, actor_id)
+);
+
 CREATE TABLE IF NOT EXISTS collaboration.notification (
   id TEXT PRIMARY KEY,
   recipient_id TEXT,

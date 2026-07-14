@@ -876,6 +876,16 @@ h3,
   border-top: 1px dashed rgba(180, 138, 82, 0.24);
 }
 
+.meeting-attendance-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(180, 138, 82, 0.24);
+}
+
 .meeting-minutes-form textarea {
   min-height: 78px;
 }

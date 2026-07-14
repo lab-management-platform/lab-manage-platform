@@ -210,6 +210,16 @@ export interface Meeting {
   updatedAt: string;
 }
 
+export type MeetingAttendanceStatus = "pending" | "accepted" | "leave" | "declined";
+
+export interface MeetingAttendance {
+  meetingId: string;
+  actorId: string;
+  status: MeetingAttendanceStatus;
+  reason?: string;
+  updatedAt: string;
+}
+
 export interface NotificationItem {
   id: string;
   recipientId?: string;

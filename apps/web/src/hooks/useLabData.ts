@@ -17,6 +17,7 @@ import type {
   ManagedUser,
   Material,
   Meeting,
+  MeetingAttendance,
   NotificationItem,
   ProgressReport,
   Project,
@@ -61,6 +62,7 @@ export function useLabData(token: string, actor: Actor | null) {
   const [files, setFiles] = useState<LabFile[]>([]);
   const [fileVersions, setFileVersions] = useState<FileVersion[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [meetingAttendance, setMeetingAttendance] = useState<MeetingAttendance[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [profile, setProfile] = useState<ManagedUser | null>(null);
@@ -120,6 +122,9 @@ export function useLabData(token: string, actor: Actor | null) {
       fetch(`${apiBase}/meetings`, { headers })
         .then(parseResponse<Meeting[]>)
         .then(setMeetings),
+      fetch(`${apiBase}/meetings/attendance`, { headers })
+        .then(parseResponse<MeetingAttendance[]>)
+        .then(setMeetingAttendance),
       fetch(`${apiBase}/notifications`, { headers })
         .then(parseResponse<NotificationItem[]>)
         .then(setNotifications),
@@ -247,6 +252,7 @@ export function useLabData(token: string, actor: Actor | null) {
     files,
     fileVersions,
     meetings,
+    meetingAttendance,
     notifications,
     unreadNotifications,
     users,
@@ -461,6 +467,20 @@ export function useLabData(token: string, actor: Actor | null) {
         body: JSON.stringify({ summary: payload.summary, status: payload.status })
       }).then(parseResponse<Meeting>);
       setMessage("会议纪要已更新。");
+      await refreshAll();
+    },
+    async updateMeetingAttendance(payload: {
+      meetingId: string;
+      status: "pending" | "accepted" | "leave" | "declined";
+      reason?: string;
+    }) {
+      if (!token) return;
+      await fetch(`${apiBase}/meetings/${payload.meetingId}/attendance`, {
+        method: "PATCH",
+        headers: toAuthorization(token),
+        body: JSON.stringify({ status: payload.status, reason: payload.reason })
+      }).then(parseResponse<MeetingAttendance>);
+      setMessage("参会反馈已提交。");
       await refreshAll();
     },
     async publishAnnouncement(payload: { title: string; content: string; projectId?: string }) {
