@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { PluginManifest } from "@lab/core";
+import type { Actor, PluginManifest } from "@lab/core";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 
@@ -957,8 +957,9 @@ const AGENT_TOOLS: ToolDefinition[] = [
   }
 ];
 
-async function executeTool(toolCall: ToolCall, pool: pg.Pool, actorId: string): Promise<string> {
+async function executeTool(toolCall: ToolCall, pool: pg.Pool, actor: Actor): Promise<string> {
   const args = toolCall.arguments;
+  const actorId = actor.id;
   const client = await pool.connect();
   try {
     switch (toolCall.name) {
@@ -978,6 +979,9 @@ async function executeTool(toolCall: ToolCall, pool: pg.Pool, actorId: string): 
       }
 
       case "get_pending_applications": {
+        if (!actor.permissions.includes("inventory:approve")) {
+          return "你没有查看待审批申请的权限。";
+        }
         const r = await client.query(
           "SELECT applicant_name, material_name, quantity, reason, status, created_at " +
             "FROM inventory.application WHERE status = 'pending' ORDER BY created_at DESC"
@@ -1012,10 +1016,11 @@ async function executeTool(toolCall: ToolCall, pool: pg.Pool, actorId: string): 
         const materialFilter = args.material_name as string | undefined;
         const limit = (args.limit as number) || 10;
         let query =
-          "SELECT material_id as name, quantity, type, remark, created_at FROM inventory.stock_movement";
+          "SELECT m.name, sm.quantity, sm.type, sm.remark, sm.created_at " +
+          "FROM inventory.stock_movement sm JOIN inventory.material m ON m.id = sm.material_id";
         const params: unknown[] = [];
         if (materialFilter) {
-          query += " WHERE material_id ILIKE $1";
+          query += " WHERE m.name ILIKE $1";
           params.push(`%${materialFilter}%`);
         }
         query += " ORDER BY created_at DESC LIMIT $" + (params.length + 1);
@@ -1035,9 +1040,10 @@ async function executeTool(toolCall: ToolCall, pool: pg.Pool, actorId: string): 
         const status = args.status as string | undefined;
         let query =
           "SELECT title, starts_at, ends_at, location, status, summary FROM collaboration.meeting";
-        const params: unknown[] = [];
+        const params: unknown[] = [actor.id, actor.permissions.includes("meeting:write")];
+        query += " WHERE ($1 = ANY(participant_ids) OR created_by = $1 OR $2 = true)";
         if (status) {
-          query += " WHERE status = $1";
+          query += " AND status = $3";
           params.push(status);
         }
         query += " ORDER BY starts_at DESC LIMIT 10";
@@ -1055,9 +1061,9 @@ async function executeTool(toolCall: ToolCall, pool: pg.Pool, actorId: string): 
       case "get_notifications": {
         const unreadOnly = args.unread_only !== false;
         const query = unreadOnly
-          ? "SELECT title, content, type, created_at FROM collaboration.notification WHERE read_at IS NULL ORDER BY created_at DESC LIMIT 10"
-          : "SELECT title, content, type, created_at FROM collaboration.notification ORDER BY created_at DESC LIMIT 10";
-        const r = await client.query(query);
+          ? "SELECT title, content, type, created_at FROM collaboration.notification WHERE (recipient_id IS NULL OR recipient_id = $1) AND read_at IS NULL ORDER BY created_at DESC LIMIT 10"
+          : "SELECT title, content, type, created_at FROM collaboration.notification WHERE recipient_id IS NULL OR recipient_id = $1 ORDER BY created_at DESC LIMIT 10";
+        const r = await client.query(query, [actor.id]);
         if (!r.rows.length) return unreadOnly ? "没有未读通知。" : "暂无通知。";
         return r.rows
           .map(
@@ -1082,8 +1088,8 @@ async function executeTool(toolCall: ToolCall, pool: pg.Pool, actorId: string): 
           params.push(category);
         }
         const r = await client.query(
-          `SELECT title, category, current_version, description FROM files.lab_file WHERE ${conditions.join(" AND ")} ORDER BY updated_at DESC LIMIT 10`,
-          params
+          `SELECT title, category, current_version, description FROM files.lab_file WHERE (${conditions.join(" AND ")}) AND (visibility <> 'private' OR owner_id = $${params.length + 1}) ORDER BY updated_at DESC LIMIT 10`,
+          [...params, actor.id]
         );
         if (!r.rows.length) return "没有找到匹配的文件。";
         return r.rows
@@ -1113,18 +1119,15 @@ async function executeTool(toolCall: ToolCall, pool: pg.Pool, actorId: string): 
         if (!mat.rows.length)
           return `错误：耗材"${materialName}"不存在，请先使用 get_inventory_status 查看可用耗材。`;
         const m = mat.rows[0];
+        if (quantity <= 0 || quantity > Number(m.stock)) {
+          return `错误：申请数量必须大于 0 且不能超过当前库存（${m.stock}${m.unit}）。`;
+        }
 
         const appId = randomUUID();
         await client.query(
           `INSERT INTO inventory.application (id, material_id, material_name, applicant_id, applicant_name, quantity, reason, status, created_at)
            VALUES ($1, $2, $3, $4, 'AI_Agent', $5, $6, 'pending', now())`,
           [appId, m.id, m.name, actorId, quantity, reason]
-        );
-
-        await client.query(
-          `INSERT INTO inventory.stock_movement (id, material_id, operator_id, quantity, type, remark, created_at)
-           VALUES ($1, $2, $3, $4, 'application_out', $5, now())`,
-          [randomUUID(), m.id, actorId, quantity, `AI Agent 提交申请：${reason}`]
         );
 
         return `已提交申请：${m.name} × ${quantity}${m.unit}，用途：${reason}。申请状态：待审批。`;
@@ -1337,7 +1340,7 @@ export const aiPlugin: PluginManifest = {
                     assistantMsg.reasoning_content = result.reasoningContent;
                   deduped.push(assistantMsg);
                   for (const tc of toolCalls) {
-                    const toolResult = await executeTool(tc, pool, actor.id);
+                    const toolResult = await executeTool(tc, pool, actor);
                     deduped.push({
                       role: "tool",
                       tool_call_id: tc.id,
