@@ -29,6 +29,14 @@ interface InventoryPageProps {
   }) => Promise<void>;
   onStockIn: (payload: { materialId: string; quantity: number; remark: string }) => Promise<void>;
   onReturnLoan: (loanId: string) => Promise<void>;
+  onCreateCategory: (payload: {
+    code: string;
+    name: string;
+    returnRequired: boolean;
+    quantityMode: "quantity" | "serialized";
+    serialRequired: boolean;
+    dynamicSchema: Record<string, unknown>;
+  }) => Promise<void>;
   onReviewApplication: (
     applicationId: string,
     action: "approve" | "reject",
@@ -49,6 +57,7 @@ export function InventoryPage({
   onSubmitApplication,
   onStockIn,
   onReturnLoan,
+  onCreateCategory,
   onReviewApplication
 }: InventoryPageProps) {
   const [selectedMaterialId, setSelectedMaterialId] = useState(materials[0]?.id ?? "");
@@ -57,6 +66,14 @@ export function InventoryPage({
   const [stockInQuantity, setStockInQuantity] = useState(10);
   const [reviewRemark, setReviewRemark] = useState("库存确认无误，批准领用。");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categoryDraft, setCategoryDraft] = useState({
+    code: "",
+    name: "",
+    returnRequired: false,
+    quantityMode: "quantity" as "quantity" | "serialized",
+    serialRequired: false,
+    dynamicFields: ""
+  });
 
   const visibleMaterials = useMemo(
     () =>
@@ -96,6 +113,114 @@ export function InventoryPage({
           <small>等待管理员/教授处理</small>
         </article>
       </div>
+
+      {actor.permissions.includes("inventory:stock") ? (
+        <SectionCard title="类别规则管理" eyebrow="Category rules">
+          <form
+            className="inventory-category-form"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              await onCreateCategory({
+                code: categoryDraft.code.trim(),
+                name: categoryDraft.name.trim(),
+                returnRequired: categoryDraft.returnRequired,
+                quantityMode: categoryDraft.quantityMode,
+                serialRequired: categoryDraft.serialRequired,
+                dynamicSchema: Object.fromEntries(
+                  categoryDraft.dynamicFields
+                    .split(",")
+                    .map((field) => field.trim())
+                    .filter(Boolean)
+                    .map((field) => [field, field])
+                )
+              });
+              setCategoryDraft({
+                code: "",
+                name: "",
+                returnRequired: false,
+                quantityMode: "quantity",
+                serialRequired: false,
+                dynamicFields: ""
+              });
+            }}
+          >
+            <label>
+              类别编码
+              <input
+                required
+                value={categoryDraft.code}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({ ...current, code: event.target.value }))
+                }
+                placeholder="例如 reagent"
+              />
+            </label>
+            <label>
+              类别名称
+              <input
+                required
+                value={categoryDraft.name}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({ ...current, name: event.target.value }))
+                }
+                placeholder="例如 试剂"
+              />
+            </label>
+            <label>
+              数量模式
+              <select
+                value={categoryDraft.quantityMode}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({
+                    ...current,
+                    quantityMode: event.target.value as "quantity" | "serialized"
+                  }))
+                }
+              >
+                <option value="quantity">按数量</option>
+                <option value="serialized">按序列号</option>
+              </select>
+            </label>
+            <label>
+              动态属性（逗号分隔）
+              <input
+                value={categoryDraft.dynamicFields}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({ ...current, dynamicFields: event.target.value }))
+                }
+                placeholder="品牌,型号,保存温度"
+              />
+            </label>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={categoryDraft.returnRequired}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({
+                    ...current,
+                    returnRequired: event.target.checked
+                  }))
+                }
+              />
+              借出后需要归还
+            </label>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={categoryDraft.serialRequired}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({
+                    ...current,
+                    serialRequired: event.target.checked
+                  }))
+                }
+              />
+              必须登记序列号
+            </label>
+            <button className="primary-button">新增类别</button>
+          </form>
+        </SectionCard>
+      ) : null}
 
       <div className="split-layout">
         <SectionCard title="物资目录" eyebrow="Inventory catalog">

@@ -264,6 +264,7 @@ export function App() {
               onSubmitApplication={lab.submitApplication}
               onStockIn={lab.stockIn}
               onReturnLoan={lab.returnLoan}
+              onCreateCategory={lab.createInventoryCategory}
               onReviewApplication={lab.reviewApplication}
             />
           ) : null}

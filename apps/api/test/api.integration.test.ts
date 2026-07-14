@@ -77,6 +77,30 @@ describe("api integration", () => {
     );
   });
 
+  it("allows inventory administrators to create a category rule", async () => {
+    const suffix = Date.now();
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/v1/inventory/categories",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        code: `reagent-${suffix}`,
+        name: `试剂${suffix}`,
+        returnRequired: false,
+        quantityMode: "quantity",
+        serialRequired: false,
+        dynamicSchema: { brand: "品牌", storage: "保存条件" }
+      }
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json<{ name: string; dynamicSchema: Record<string, string> }>()).toEqual(
+      expect.objectContaining({
+        name: `试剂${suffix}`,
+        dynamicSchema: { brand: "品牌", storage: "保存条件" }
+      })
+    );
+  });
+
   it("creates a user, updates role, and removes the user through HTTP contracts", async () => {
     const suffix = Date.now();
     const created = await app.inject({

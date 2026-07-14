@@ -802,6 +802,31 @@ h3,
   justify-content: flex-end;
 }
 
+.inventory-category-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.inventory-category-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inventory-category-form .checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.inventory-category-form .checkbox-field input {
+  width: auto;
+}
+
 .project-filter-bar label {
   display: grid;
   gap: 5px;

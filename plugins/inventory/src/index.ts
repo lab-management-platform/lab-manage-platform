@@ -17,6 +17,15 @@ interface InventoryCategory {
   active: boolean;
 }
 
+interface InventoryCategoryRequest {
+  code: string;
+  name: string;
+  returnRequired?: boolean;
+  quantityMode?: "quantity" | "serialized";
+  serialRequired?: boolean;
+  dynamicSchema?: Record<string, unknown>;
+}
+
 interface Material {
   id: string;
   name: string;
@@ -102,6 +111,9 @@ interface InventoryRepository {
     approvedApplications: number;
   }>;
   listCategories(): Promise<InventoryCategory[]>;
+  createCategory(
+    input: InventoryCategoryRequest
+  ): Promise<InventoryCategory | { error: string; status: number }>;
   listMaterials(): Promise<Material[]>;
   listApplications(): Promise<InventoryApplication[]>;
   listStockMovements(): Promise<StockMovement[]>;
@@ -244,6 +256,26 @@ class MemoryInventoryRepository implements InventoryRepository {
 
   async listCategories(): Promise<InventoryCategory[]> {
     return structuredClone(this.categories);
+  }
+
+  async createCategory(
+    input: InventoryCategoryRequest
+  ): Promise<InventoryCategory | { error: string; status: number }> {
+    if (this.categories.some((category) => category.code === input.code)) {
+      return { status: 409, error: "Category code already exists" };
+    }
+    const category: InventoryCategory = {
+      id: `category-${randomUUID()}`,
+      code: input.code,
+      name: input.name,
+      returnRequired: input.returnRequired ?? false,
+      quantityMode: input.quantityMode ?? "quantity",
+      serialRequired: input.serialRequired ?? false,
+      dynamicSchema: input.dynamicSchema ?? {},
+      active: true
+    };
+    this.categories.push(category);
+    return structuredClone(category);
   }
 
   async listMaterials(): Promise<Material[]> {
@@ -639,6 +671,36 @@ class PostgresInventoryRepository implements InventoryRepository {
        ORDER BY name`
     );
     return result.rows.map(mapCategoryRow);
+  }
+
+  async createCategory(
+    input: InventoryCategoryRequest
+  ): Promise<InventoryCategory | { error: string; status: number }> {
+    const id = `category-${randomUUID()}`;
+    try {
+      const result = await this.pool.query(
+        `INSERT INTO inventory.item_category
+          (id, code, name, return_required, quantity_mode, serial_required, dynamic_schema)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, code, name, return_required, quantity_mode, serial_required,
+                   dynamic_schema, active`,
+        [
+          id,
+          input.code,
+          input.name,
+          input.returnRequired ?? false,
+          input.quantityMode ?? "quantity",
+          input.serialRequired ?? false,
+          JSON.stringify(input.dynamicSchema ?? {})
+        ]
+      );
+      return mapCategoryRow(result.rows[0]);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("duplicate key")) {
+        return { status: 409, error: "Category code already exists" };
+      }
+      throw error;
+    }
   }
 
   async listMaterials(): Promise<Material[]> {
@@ -1114,6 +1176,12 @@ export const inventoryPlugin: PluginManifest = {
       summary: "获取物资类别与动态属性规则"
     },
     {
+      method: "POST",
+      path: "/inventory/categories",
+      permission: "inventory:stock",
+      summary: "新增物资类别与动态属性规则"
+    },
+    {
       method: "GET",
       path: "/inventory/applications",
       permission: "inventory:read",
@@ -1195,6 +1263,45 @@ export const inventoryPlugin: PluginManifest = {
           permission: "inventory:read",
           summary: "获取物资类别与动态属性规则",
           handler: async () => ({ body: await repository.listCategories() })
+        },
+        {
+          method: "POST",
+          path: "/inventory/categories",
+          permission: "inventory:stock",
+          summary: "新增物资类别与动态属性规则",
+          handler: async ({ actor, body }) => {
+            if (!actor) return { status: 401, body: { error: "Unauthorized" } };
+            const request = body as Partial<InventoryCategoryRequest>;
+            if (!request.code?.trim() || !request.name?.trim()) {
+              return { status: 400, body: { error: "code and name are required" } };
+            }
+            if (
+              request.quantityMode &&
+              !["quantity", "serialized"].includes(request.quantityMode)
+            ) {
+              return { status: 400, body: { error: "invalid quantityMode" } };
+            }
+            const category = await repository.createCategory({
+              code: request.code.trim(),
+              name: request.name.trim(),
+              returnRequired: request.returnRequired === true,
+              quantityMode: request.quantityMode,
+              serialRequired: request.serialRequired === true,
+              dynamicSchema: request.dynamicSchema ?? {}
+            });
+            if (isRepositoryError(category)) {
+              return { status: category.status, body: { error: category.error } };
+            }
+            await context.audit.record({
+              actorId: actor.id,
+              action: "inventory.category.created",
+              targetType: "inventory_category",
+              targetId: category.id,
+              occurredAt: new Date().toISOString(),
+              metadata: { code: category.code, name: category.name }
+            });
+            return { status: 201, body: category };
+          }
         },
         {
           method: "GET",

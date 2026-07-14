@@ -389,6 +389,23 @@ export function useLabData(token: string, actor: Actor | null) {
         setLoading(false);
       }
     },
+    async createInventoryCategory(payload: {
+      code: string;
+      name: string;
+      returnRequired: boolean;
+      quantityMode: "quantity" | "serialized";
+      serialRequired: boolean;
+      dynamicSchema: Record<string, unknown>;
+    }) {
+      if (!token) return;
+      await fetch(`${apiBase}/inventory/categories`, {
+        method: "POST",
+        headers: toAuthorization(token),
+        body: JSON.stringify(payload)
+      }).then(parseResponse<InventoryCategory>);
+      setMessage("物资类别已创建。");
+      await refreshAll();
+    },
     async reviewApplication(applicationId: string, action: "approve" | "reject", remark: string) {
       if (!token) return;
       setLoading(true);
