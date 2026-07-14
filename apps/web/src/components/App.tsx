@@ -206,6 +206,7 @@ export function App() {
               materials={lab.materials}
               applications={lab.applications}
               notifications={lab.notifications}
+              dashboard={lab.dashboard}
               onOpenView={(view) => setActiveView(view)}
               onSelectProject={(projectId) => {
                 setSelectedProjectId(projectId);
