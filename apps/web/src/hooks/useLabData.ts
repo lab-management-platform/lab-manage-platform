@@ -449,6 +449,20 @@ export function useLabData(token: string, actor: Actor | null) {
         setLoading(false);
       }
     },
+    async updateMeetingMinutes(payload: {
+      meetingId: string;
+      summary: string;
+      status: "scheduled" | "completed" | "cancelled";
+    }) {
+      if (!token) return;
+      await fetch(`${apiBase}/meetings/${payload.meetingId}/minutes`, {
+        method: "PATCH",
+        headers: toAuthorization(token),
+        body: JSON.stringify({ summary: payload.summary, status: payload.status })
+      }).then(parseResponse<Meeting>);
+      setMessage("会议纪要已更新。");
+      await refreshAll();
+    },
     async publishAnnouncement(payload: { title: string; content: string; projectId?: string }) {
       if (!token) return;
       setLoading(true);

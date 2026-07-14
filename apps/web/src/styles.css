@@ -868,6 +868,18 @@ h3,
   white-space: nowrap;
 }
 
+.meeting-minutes-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(180, 138, 82, 0.24);
+}
+
+.meeting-minutes-form textarea {
+  min-height: 78px;
+}
+
 .project-filter-bar label {
   display: grid;
   gap: 5px;

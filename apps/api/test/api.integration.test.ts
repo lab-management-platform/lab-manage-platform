@@ -266,6 +266,15 @@ describe("api integration", () => {
     const meeting = created.json<{ id: string; title: string }>();
     expect(meeting.title).toBe(`接口会议${suffix}`);
 
+    const minutes = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/meetings/${meeting.id}/minutes`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { summary: "已完成接口评审，下一步补充会议纪要。", status: "completed" }
+    });
+    expect(minutes.statusCode).toBe(200);
+    expect(minutes.json<{ status: string }>().status).toBe("completed");
+
     const meetings = await app.inject({
       method: "GET",
       url: "/meetings",

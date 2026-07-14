@@ -290,6 +290,7 @@ export function App() {
               meetings={lab.meetings}
               notifications={lab.notifications}
               onCreateMeeting={lab.createMeeting}
+              onUpdateMeetingMinutes={lab.updateMeetingMinutes}
               onPublishAnnouncement={lab.publishAnnouncement}
               onMarkNotificationRead={lab.markNotificationRead}
             />
