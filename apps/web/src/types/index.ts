@@ -68,9 +68,25 @@ export interface StockMovement {
   materialName: string;
   operatorId: string;
   quantity: number;
-  type: "stock_in" | "application_out";
+  type: "stock_in" | "application_out" | "return";
   remark: string;
   createdAt: string;
+}
+
+export type LoanStatus = "borrowed" | "returned" | "overdue";
+
+export interface InventoryLoan {
+  id: string;
+  applicationId: string;
+  materialId: string;
+  materialName: string;
+  borrowerId: string;
+  borrowerName: string;
+  quantity: number;
+  dueAt: string;
+  status: LoanStatus;
+  borrowedAt: string;
+  returnedAt?: string;
 }
 
 export interface Summary {

@@ -249,10 +249,12 @@ export function App() {
               materials={lab.materials}
               applications={lab.applications}
               stockMovements={lab.stockMovements}
+              loans={lab.loans}
               projects={lab.projects}
               selectedProjectId={selectedProjectId}
               onSubmitApplication={lab.submitApplication}
               onStockIn={lab.stockIn}
+              onReturnLoan={lab.returnLoan}
               onReviewApplication={lab.reviewApplication}
             />
           ) : null}

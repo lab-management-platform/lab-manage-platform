@@ -1867,7 +1867,9 @@ async function resolveUserByIdentity(
 }
 
 function canSelfUpdateTask(actor: Actor, task: ProjectTask, member: ProjectMember | null): boolean {
-  return actor.role === "student" && member !== null && task.assigneeId === actor.id;
+  return (
+    ["student", "member"].includes(actor.role) && member !== null && task.assigneeId === actor.id
+  );
 }
 
 function canEditProjectNote(
@@ -1877,7 +1879,7 @@ function canEditProjectNote(
 ): boolean {
   return (
     isPrivilegedRole(actor) ||
-    ["owner", "advisor"].includes(member?.memberRole ?? "") ||
+    ["owner", "leader", "advisor"].includes(member?.memberRole ?? "") ||
     note.authorId === actor.id
   );
 }
@@ -2058,8 +2060,11 @@ export const projectsPlugin: PluginManifest = {
         return null;
       }
       const member = await repo.findMember(projectId, actor.id);
-      if (!member || !["owner", "advisor"].includes(member.memberRole)) {
-        return { status: 403, body: { error: "仅学生负责人、导师或管理员可修改项目" } } as const;
+      if (!member || !["owner", "leader", "advisor"].includes(member.memberRole)) {
+        return {
+          status: 403,
+          body: { error: "仅项目负责人、组长、导师或管理员可修改项目" }
+        } as const;
       }
       return null;
     };
@@ -2846,7 +2851,8 @@ export const projectsPlugin: PluginManifest = {
             }
             const member = actor ? await repo.findMember(params.id, actor.id) : null;
             const isManager = actor
-              ? isPrivilegedRole(actor) || ["owner", "advisor"].includes(member?.memberRole ?? "")
+              ? isPrivilegedRole(actor) ||
+                ["owner", "leader", "advisor"].includes(member?.memberRole ?? "")
               : false;
 
             const req = body as Partial<TaskUpdateRequest>;

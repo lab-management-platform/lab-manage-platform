@@ -8,6 +8,7 @@ import type {
   FaqTemplate,
   FileVersion,
   InventoryApplication,
+  InventoryLoan,
   KnowledgeDocument,
   KnowledgeSource,
   LabFile,
@@ -46,6 +47,7 @@ export function useLabData(token: string, actor: Actor | null) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [applications, setApplications] = useState<InventoryApplication[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [loans, setLoans] = useState<InventoryLoan[]>([]);
   const [summary, setSummary] = useState<Summary>({
     materialCount: 0,
     lowStockCount: 0,
@@ -99,6 +101,9 @@ export function useLabData(token: string, actor: Actor | null) {
       fetch(`${apiBase}/inventory/stock-movements`, { headers })
         .then(parseResponse<StockMovement[]>)
         .then(setStockMovements),
+      fetch(`${apiBase}/inventory/loans`, { headers })
+        .then(parseResponse<InventoryLoan[]>)
+        .then(setLoans),
       fetch(`${apiBase}/files`, { headers })
         .then(parseResponse<LabFile[]>)
         .then(setFiles),
@@ -226,6 +231,7 @@ export function useLabData(token: string, actor: Actor | null) {
     materials,
     applications,
     stockMovements,
+    loans,
     files,
     fileVersions,
     meetings,
@@ -352,6 +358,20 @@ export function useLabData(token: string, actor: Actor | null) {
           body: JSON.stringify({ quantity: payload.quantity, remark: payload.remark })
         }).then(parseResponse<Material>);
         setMessage("入库登记完成。");
+        await refreshAll();
+      } finally {
+        setLoading(false);
+      }
+    },
+    async returnLoan(loanId: string) {
+      if (!token) return;
+      setLoading(true);
+      try {
+        await fetch(`${apiBase}/inventory/loans/${loanId}/return`, {
+          method: "PATCH",
+          headers: toAuthorization(token)
+        }).then(parseResponse<InventoryLoan>);
+        setMessage("器材归还已登记。");
         await refreshAll();
       } finally {
         setLoading(false);

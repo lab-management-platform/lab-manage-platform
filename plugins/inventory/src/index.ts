@@ -15,6 +15,10 @@ interface Material {
   unit: string;
   location: string;
   manager: string;
+  categoryId?: string;
+  categoryName?: string;
+  returnRequired?: boolean;
+  serialRequired?: boolean;
 }
 
 interface InventoryApplication {
@@ -30,6 +34,25 @@ interface InventoryApplication {
   createdAt: string;
   reviewedAt?: string;
   reviewRemark?: string;
+  usageMode?: "consume" | "borrow";
+  dueAt?: string;
+  returnedAt?: string;
+}
+
+type LoanStatus = "borrowed" | "returned" | "overdue";
+
+interface InventoryLoan {
+  id: string;
+  applicationId: string;
+  materialId: string;
+  materialName: string;
+  borrowerId: string;
+  borrowerName: string;
+  quantity: number;
+  dueAt: string;
+  status: LoanStatus;
+  borrowedAt: string;
+  returnedAt?: string;
 }
 
 interface StockMovement {
@@ -38,7 +61,7 @@ interface StockMovement {
   materialName: string;
   operatorId: string;
   quantity: number;
-  type: "stock_in" | "application_out";
+  type: "stock_in" | "application_out" | "return";
   remark: string;
   createdAt: string;
 }
@@ -70,6 +93,11 @@ interface InventoryRepository {
   listMaterials(): Promise<Material[]>;
   listApplications(): Promise<InventoryApplication[]>;
   listStockMovements(): Promise<StockMovement[]>;
+  listLoans(): Promise<InventoryLoan[]>;
+  returnLoan(
+    id: string,
+    actorId: string
+  ): Promise<InventoryLoan | { error: string; status: number }>;
   createApplication(input: {
     actorId: string;
     materialId: string;
@@ -124,7 +152,11 @@ const seedMaterials: Material[] = [
     warnStock: 8,
     unit: "包",
     location: "B-01 耗材柜",
-    manager: "王同学"
+    manager: "王同学",
+    categoryId: "category-equipment",
+    categoryName: "器材",
+    returnRequired: true,
+    serialRequired: true
   },
   {
     id: "m-004",
@@ -156,6 +188,7 @@ class MemoryInventoryRepository implements InventoryRepository {
   private readonly materials = structuredClone(seedMaterials);
   private readonly applications = structuredClone(seedApplications);
   private readonly stockMovements: StockMovement[] = [];
+  private readonly loans: InventoryLoan[] = [];
 
   async initialize(): Promise<void> {
     return Promise.resolve();
@@ -185,6 +218,47 @@ class MemoryInventoryRepository implements InventoryRepository {
 
   async listStockMovements(): Promise<StockMovement[]> {
     return [...this.stockMovements].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async listLoans(): Promise<InventoryLoan[]> {
+    return this.loans
+      .map((loan) =>
+        loan.status === "borrowed" && new Date(loan.dueAt) < new Date()
+          ? { ...loan, status: "overdue" as const }
+          : loan
+      )
+      .sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  }
+
+  async returnLoan(
+    id: string,
+    actorId: string
+  ): Promise<InventoryLoan | { error: string; status: number }> {
+    const loan = this.loans.find((item) => item.id === id);
+    if (!loan) return { status: 404, error: "Loan not found" };
+    if (loan.status === "returned") return { status: 409, error: "Loan already returned" };
+    if (loan.borrowerId !== actorId && !actorId.includes("admin")) {
+      return {
+        status: 403,
+        error: "Only borrower or inventory administrator can return this item"
+      };
+    }
+    const material = this.materials.find((item) => item.id === loan.materialId);
+    if (!material) return { status: 404, error: "Material not found" };
+    material.stock += loan.quantity;
+    loan.status = "returned";
+    loan.returnedAt = new Date().toISOString();
+    this.stockMovements.unshift({
+      id: randomUUID(),
+      materialId: material.id,
+      materialName: material.name,
+      operatorId: actorId,
+      quantity: loan.quantity,
+      type: "return",
+      remark: "器材归还",
+      createdAt: loan.returnedAt
+    });
+    return loan;
   }
 
   async createApplication(input: {
@@ -251,6 +325,23 @@ class MemoryInventoryRepository implements InventoryRepository {
       remark: "审批出库",
       createdAt: new Date().toISOString()
     });
+    if (material.returnRequired) {
+      const dueAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      application.usageMode = "borrow";
+      application.dueAt = dueAt;
+      this.loans.unshift({
+        id: randomUUID(),
+        applicationId: application.id,
+        materialId: material.id,
+        materialName: material.name,
+        borrowerId: application.applicantId,
+        borrowerName: application.applicantName,
+        quantity: application.quantity,
+        dueAt,
+        status: "borrowed",
+        borrowedAt: application.reviewedAt
+      });
+    }
     return application;
   }
 
@@ -310,6 +401,19 @@ class PostgresInventoryRepository implements InventoryRepository {
     await this.pool.query(`
       CREATE SCHEMA IF NOT EXISTS inventory;
 
+      CREATE TABLE IF NOT EXISTS inventory.item_category (
+        id TEXT PRIMARY KEY,
+        code TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        return_required BOOLEAN NOT NULL DEFAULT false,
+        quantity_mode TEXT NOT NULL DEFAULT 'quantity'
+          CHECK (quantity_mode IN ('quantity', 'serialized')),
+        serial_required BOOLEAN NOT NULL DEFAULT false,
+        dynamic_schema JSONB NOT NULL DEFAULT '{}',
+        active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
       CREATE TABLE IF NOT EXISTS inventory.material (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -320,6 +424,9 @@ class PostgresInventoryRepository implements InventoryRepository {
         location TEXT NOT NULL,
         manager TEXT NOT NULL
       );
+      ALTER TABLE inventory.material ADD COLUMN IF NOT EXISTS category_id TEXT;
+      ALTER TABLE inventory.material ADD COLUMN IF NOT EXISTS dynamic_attributes JSONB NOT NULL DEFAULT '{}';
+      ALTER TABLE inventory.material ADD COLUMN IF NOT EXISTS manager_id TEXT;
 
       CREATE TABLE IF NOT EXISTS inventory.application (
         id TEXT PRIMARY KEY,
@@ -336,6 +443,9 @@ class PostgresInventoryRepository implements InventoryRepository {
         review_remark TEXT
       );
       ALTER TABLE inventory.application ADD COLUMN IF NOT EXISTS project_id TEXT;
+      ALTER TABLE inventory.application ADD COLUMN IF NOT EXISTS usage_mode TEXT NOT NULL DEFAULT 'consume';
+      ALTER TABLE inventory.application ADD COLUMN IF NOT EXISTS due_at TIMESTAMPTZ;
+      ALTER TABLE inventory.application ADD COLUMN IF NOT EXISTS returned_at TIMESTAMPTZ;
 
       CREATE TABLE IF NOT EXISTS inventory.application_review (
         id TEXT PRIMARY KEY,
@@ -355,7 +465,61 @@ class PostgresInventoryRepository implements InventoryRepository {
         remark TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      ALTER TABLE inventory.stock_movement DROP CONSTRAINT IF EXISTS stock_movement_type_check;
+      ALTER TABLE inventory.stock_movement ADD CONSTRAINT stock_movement_type_check
+        CHECK (type IN ('stock_in', 'application_out', 'return'));
+
+      CREATE TABLE IF NOT EXISTS inventory.loan (
+        id TEXT PRIMARY KEY,
+        application_id TEXT NOT NULL UNIQUE REFERENCES inventory.application(id),
+        material_id TEXT NOT NULL REFERENCES inventory.material(id),
+        borrower_id TEXT NOT NULL,
+        borrower_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        due_at TIMESTAMPTZ NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('borrowed', 'returned', 'overdue')),
+        borrowed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        returned_at TIMESTAMPTZ
+      );
     `);
+
+    for (const category of [
+      {
+        id: "category-consumable",
+        code: "consumable",
+        name: "耗材",
+        returnRequired: false,
+        quantityMode: "quantity",
+        serialRequired: false
+      },
+      {
+        id: "category-equipment",
+        code: "equipment",
+        name: "器材",
+        returnRequired: true,
+        quantityMode: "serialized",
+        serialRequired: true
+      }
+    ]) {
+      await this.pool.query(
+        `INSERT INTO inventory.item_category
+          (id, code, name, return_required, quantity_mode, serial_required)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           return_required = EXCLUDED.return_required,
+           quantity_mode = EXCLUDED.quantity_mode,
+           serial_required = EXCLUDED.serial_required`,
+        [
+          category.id,
+          category.code,
+          category.name,
+          category.returnRequired,
+          category.quantityMode,
+          category.serialRequired
+        ]
+      );
+    }
 
     const materialCount = await this.pool.query<{ count: string }>(
       "SELECT COUNT(*) AS count FROM inventory.material"
@@ -364,8 +528,8 @@ class PostgresInventoryRepository implements InventoryRepository {
       for (const material of seedMaterials) {
         await this.pool.query(
           `INSERT INTO inventory.material
-            (id, name, spec, stock, warn_stock, unit, location, manager)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            (id, name, spec, stock, warn_stock, unit, location, manager, category_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
             material.id,
             material.name,
@@ -374,7 +538,8 @@ class PostgresInventoryRepository implements InventoryRepository {
             material.warnStock,
             material.unit,
             material.location,
-            material.manager
+            material.manager,
+            material.categoryId ?? "category-consumable"
           ]
         );
       }
@@ -476,6 +641,79 @@ class PostgresInventoryRepository implements InventoryRepository {
     return result.rows.map(mapStockMovementRow);
   }
 
+  async listLoans(): Promise<InventoryLoan[]> {
+    await this.pool.query(
+      `UPDATE inventory.loan SET status = 'overdue'
+       WHERE status = 'borrowed' AND due_at < now()`
+    );
+    const result = await this.pool.query(
+      `SELECT l.*, m.name AS material_name
+       FROM inventory.loan l
+       JOIN inventory.material m ON m.id = l.material_id
+       ORDER BY l.due_at ASC`
+    );
+    return result.rows.map(mapLoanRow);
+  }
+
+  async returnLoan(
+    id: string,
+    actorId: string
+  ): Promise<InventoryLoan | { error: string; status: number }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const loanResult = await client.query(
+        `SELECT l.*, m.name AS material_name
+         FROM inventory.loan l
+         JOIN inventory.material m ON m.id = l.material_id
+         WHERE l.id = $1 FOR UPDATE`,
+        [id]
+      );
+      const loan = loanResult.rows[0];
+      if (!loan) {
+        await client.query("ROLLBACK");
+        return { status: 404, error: "Loan not found" };
+      }
+      if (loan.status === "returned") {
+        await client.query("ROLLBACK");
+        return { status: 409, error: "Loan already returned" };
+      }
+      if (loan.borrower_id !== actorId && !actorId.includes("admin")) {
+        await client.query("ROLLBACK");
+        return {
+          status: 403,
+          error: "Only borrower or inventory administrator can return this item"
+        };
+      }
+      await client.query("UPDATE inventory.material SET stock = stock + $1 WHERE id = $2", [
+        loan.quantity,
+        loan.material_id
+      ]);
+      await client.query(
+        `UPDATE inventory.loan SET status = 'returned', returned_at = now() WHERE id = $1`,
+        [id]
+      );
+      await client.query(`UPDATE inventory.application SET returned_at = now() WHERE id = $1`, [
+        loan.application_id
+      ]);
+      await client.query(
+        `INSERT INTO inventory.stock_movement
+          (id, material_id, operator_id, quantity, type, remark)
+         VALUES ($1, $2, $3, $4, 'return', $5)`,
+        [randomUUID(), loan.material_id, actorId, loan.quantity, "器材归还"]
+      );
+      await client.query("COMMIT");
+      return {
+        ...mapLoanRow({ ...loan, status: "returned", returned_at: new Date().toISOString() })
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async createApplication(input: {
     actorId: string;
     materialId: string;
@@ -565,8 +803,11 @@ class PostgresInventoryRepository implements InventoryRepository {
         return { status: 409, error: "Application already reviewed" };
       }
 
-      const materialResult = await client.query<{ stock: number }>(
-        "SELECT stock FROM inventory.material WHERE id = $1 FOR UPDATE",
+      const materialResult = await client.query<{ stock: number; return_required: boolean }>(
+        `SELECT m.stock, COALESCE(c.return_required, false) AS return_required
+         FROM inventory.material m
+         LEFT JOIN inventory.item_category c ON c.id = m.category_id
+         WHERE m.id = $1 FOR UPDATE`,
         [application.material_id]
       );
       const material = materialResult.rows[0];
@@ -606,6 +847,27 @@ class PostgresInventoryRepository implements InventoryRepository {
           "审批出库"
         ]
       );
+      if (material.return_required) {
+        const dueAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+        await client.query(
+          `UPDATE inventory.application SET usage_mode = 'borrow', due_at = $2 WHERE id = $1`,
+          [id, dueAt]
+        );
+        await client.query(
+          `INSERT INTO inventory.loan
+            (id, application_id, material_id, borrower_id, borrower_name, quantity, due_at, status, borrowed_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'borrowed', now())`,
+          [
+            randomUUID(),
+            id,
+            application.material_id,
+            application.applicant_id,
+            application.applicant_name,
+            application.quantity,
+            dueAt
+          ]
+        );
+      }
       await client.query("COMMIT");
       return mapApplicationRow(updated.rows[0]);
     } catch (error) {
@@ -726,6 +988,24 @@ function mapStockMovementRow(row: Record<string, unknown>): StockMovement {
   };
 }
 
+function mapLoanRow(row: Record<string, unknown>): InventoryLoan {
+  const dueAt = new Date(String(row.due_at)).toISOString();
+  const status = row.status === "borrowed" && new Date(dueAt) < new Date() ? "overdue" : row.status;
+  return {
+    id: String(row.id),
+    applicationId: String(row.application_id),
+    materialId: String(row.material_id),
+    materialName: String(row.material_name),
+    borrowerId: String(row.borrower_id),
+    borrowerName: String(row.borrower_name),
+    quantity: Number(row.quantity),
+    dueAt,
+    status: status as LoanStatus,
+    borrowedAt: new Date(String(row.borrowed_at)).toISOString(),
+    returnedAt: row.returned_at ? new Date(String(row.returned_at)).toISOString() : undefined
+  };
+}
+
 function createRepository(): InventoryRepository {
   if (!process.env.DATABASE_URL) {
     return new MemoryInventoryRepository();
@@ -733,8 +1013,8 @@ function createRepository(): InventoryRepository {
   return new PostgresInventoryRepository(process.env.DATABASE_URL);
 }
 
-function isRepositoryError(
-  value: InventoryApplication | { error: string; status: number }
+function isRepositoryError<T extends object>(
+  value: T | { error: string; status: number }
 ): value is { error: string; status: number } {
   return "error" in value;
 }
@@ -773,6 +1053,18 @@ export const inventoryPlugin: PluginManifest = {
       path: "/inventory/stock-movements",
       permission: "inventory:read",
       summary: "查询库存流水"
+    },
+    {
+      method: "GET",
+      path: "/inventory/loans",
+      permission: "inventory:read",
+      summary: "查询器材借用记录"
+    },
+    {
+      method: "PATCH",
+      path: "/inventory/loans/:id/return",
+      permission: "inventory:apply",
+      summary: "归还器材"
     },
     {
       method: "POST",
@@ -845,6 +1137,35 @@ export const inventoryPlugin: PluginManifest = {
           permission: "inventory:read",
           summary: "查询库存流水",
           handler: async () => ({ body: await repository.listStockMovements() })
+        },
+        {
+          method: "GET",
+          path: "/inventory/loans",
+          permission: "inventory:read",
+          summary: "查询器材借用记录",
+          handler: async () => ({ body: await repository.listLoans() })
+        },
+        {
+          method: "PATCH",
+          path: "/inventory/loans/:id/return",
+          permission: "inventory:apply",
+          summary: "归还器材",
+          handler: async ({ actor, params }) => {
+            if (!actor) return { status: 401, body: { error: "Unauthorized" } };
+            const loan = await repository.returnLoan(params.id, actor.id);
+            if (isRepositoryError(loan)) {
+              return { status: loan.status, body: { error: loan.error } };
+            }
+            await context.audit.record({
+              actorId: actor.id,
+              action: "inventory.loan.returned",
+              targetType: "inventory_loan",
+              targetId: loan.id,
+              occurredAt: new Date().toISOString(),
+              metadata: { materialId: loan.materialId, quantity: loan.quantity }
+            });
+            return { body: loan };
+          }
         },
         {
           method: "POST",

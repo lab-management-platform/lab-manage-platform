@@ -3,6 +3,7 @@ import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
 import type {
   Actor,
   InventoryApplication,
+  InventoryLoan,
   Material,
   Project,
   StockMovement,
@@ -15,6 +16,7 @@ interface InventoryPageProps {
   materials: Material[];
   applications: InventoryApplication[];
   stockMovements: StockMovement[];
+  loans: InventoryLoan[];
   projects: Project[];
   selectedProjectId: string;
   onSubmitApplication: (payload: {
@@ -24,6 +26,7 @@ interface InventoryPageProps {
     projectId?: string;
   }) => Promise<void>;
   onStockIn: (payload: { materialId: string; quantity: number; remark: string }) => Promise<void>;
+  onReturnLoan: (loanId: string) => Promise<void>;
   onReviewApplication: (
     applicationId: string,
     action: "approve" | "reject",
@@ -37,10 +40,12 @@ export function InventoryPage({
   materials,
   applications,
   stockMovements,
+  loans,
   projects,
   selectedProjectId,
   onSubmitApplication,
   onStockIn,
+  onReturnLoan,
   onReviewApplication
 }: InventoryPageProps) {
   const [selectedMaterialId, setSelectedMaterialId] = useState(materials[0]?.id ?? "");
@@ -59,6 +64,7 @@ export function InventoryPage({
     [applications, selectedProjectId]
   );
   const recentMovements = stockMovements.slice(0, 6);
+  const activeLoans = loans.filter((loan) => loan.status !== "returned");
 
   return (
     <div className="page-grid">
@@ -280,13 +286,52 @@ export function InventoryPage({
                     <small>{movement.remark}</small>
                   </div>
                   <div className="row-inline">
-                    <small>{movement.type === "stock_in" ? "入库" : "领用出库"}</small>
+                    <small>
+                      {movement.type === "stock_in"
+                        ? "入库"
+                        : movement.type === "return"
+                          ? "器材归还"
+                          : "领用出库"}
+                    </small>
                     <span className="numeric">{movement.quantity}</span>
                   </div>
                 </article>
               ))
             )}
           </div>
+        </SectionCard>
+
+        <SectionCard title="器材借还" eyebrow="Loans">
+          {activeLoans.length === 0 ? (
+            <EmptyState title="暂无待归还器材" text="器材审批通过后会在这里生成应还记录。" />
+          ) : (
+            <div className="data-list">
+              {activeLoans.map((loan) => (
+                <article key={loan.id} className="list-row">
+                  <div>
+                    <strong>{loan.materialName}</strong>
+                    <small>
+                      {loan.borrowerName} · 应还 {new Date(loan.dueAt).toLocaleDateString("zh-CN")}
+                    </small>
+                  </div>
+                  <div className="row-inline">
+                    <StatusBadge tone={loan.status === "overdue" ? "danger" : "active"}>
+                      {loan.status === "overdue" ? "已逾期" : "借用中"}
+                    </StatusBadge>
+                    {loan.borrowerId === actor.id ||
+                    actor.permissions.includes("inventory:approve") ? (
+                      <button
+                        className="tertiary-button"
+                        onClick={() => void onReturnLoan(loan.id)}
+                      >
+                        登记归还
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </SectionCard>
       </div>
     </div>

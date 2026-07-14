@@ -48,6 +48,9 @@ CREATE TABLE IF NOT EXISTS inventory.item_category (
 ALTER TABLE inventory.material ADD COLUMN IF NOT EXISTS category_id TEXT;
 ALTER TABLE inventory.material ADD COLUMN IF NOT EXISTS dynamic_attributes JSONB NOT NULL DEFAULT '{}';
 ALTER TABLE inventory.material ADD COLUMN IF NOT EXISTS manager_id TEXT;
+ALTER TABLE inventory.application ADD COLUMN IF NOT EXISTS usage_mode TEXT NOT NULL DEFAULT 'consume';
+ALTER TABLE inventory.application ADD COLUMN IF NOT EXISTS due_at TIMESTAMPTZ;
+ALTER TABLE inventory.application ADD COLUMN IF NOT EXISTS returned_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS inventory.item_instance (
   id TEXT PRIMARY KEY,
