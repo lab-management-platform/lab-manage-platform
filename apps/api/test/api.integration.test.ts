@@ -27,7 +27,16 @@ describe("api integration", () => {
   it("exposes health and authenticated profile endpoints", async () => {
     const health = await app.inject({ method: "GET", url: "/health" });
     expect(health.statusCode).toBe(200);
-    expect(health.json<{ plugins: string[] }>().plugins).toContain("inventory");
+    expect(
+      health.json<{
+        plugins: string[];
+        externalServices: { synologyNas: { accessScope: string } };
+      }>().plugins
+    ).toContain("inventory");
+    expect(
+      health.json<{ externalServices: { synologyNas: { accessScope: string } } }>().externalServices
+        .synologyNas.accessScope
+    ).toBe("campus_network_or_vpn");
 
     const profile = await app.inject({
       method: "GET",

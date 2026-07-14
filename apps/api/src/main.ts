@@ -10,7 +10,15 @@ export async function createApiApp() {
 
   app.get("/health", async () => ({
     status: "ok",
-    plugins: kernel.plugins
+    plugins: kernel.plugins,
+    externalServices: {
+      synologyNas: {
+        provider: "Synology NAS",
+        configured: Boolean(process.env.SYNOLOGY_BASE_URL),
+        accessScope: "campus_network_or_vpn",
+        note: "NAS requires campus network or campus VPN access"
+      }
+    }
   }));
 
   app.post("/auth/login", async (request, reply) => {
