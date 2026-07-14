@@ -1,6 +1,7 @@
 import type { SyntheticEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { LoginForm } from "./LoginForm";
+import { OidcLogin } from "./OidcLogin";
 import { Sidebar } from "./layout/Sidebar";
 import { Topbar } from "./layout/Topbar";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -14,6 +15,7 @@ import { navItems, type AppView } from "../config/navigation";
 import { useLabData } from "../hooks/useLabData";
 import { apiBase } from "../utils/helpers";
 import type { Actor } from "../types";
+import { actorFromOidcUser, oidcEnabled, oidcManager } from "../auth/oidc";
 
 export function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem("lab_token") ?? "");
@@ -76,6 +78,19 @@ export function App() {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [activeView]);
 
+  useEffect(() => {
+    if (!oidcEnabled) return;
+    void (async () => {
+      const callback = window.location.pathname === "/auth/callback";
+      const user = callback ? await oidcManager.signinCallback() : await oidcManager.getUser();
+      if (user && !user.expired) {
+        setToken(user.access_token);
+        setActor(actorFromOidcUser(user));
+        if (callback) window.history.replaceState({}, "", "/");
+      }
+    })();
+  }, []);
+
   async function login(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthLoading(true);
@@ -104,27 +119,16 @@ export function App() {
 
   async function resetPassword(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
-    setAuthLoading(true);
-    setResetResult("");
-    try {
-      const response = await fetch(`${apiBase}/auth/forgot-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: resetIdentifier, phone: resetPhone })
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error ?? "找回密码失败");
-      }
-      setResetResult(`密码已重置，新密码：${payload.newPassword}`);
-    } catch (error) {
-      setResetResult(error instanceof Error ? error.message : "找回密码失败");
-    } finally {
-      setAuthLoading(false);
-    }
+    void event;
+    void resetIdentifier;
+    void resetPhone;
+    setResetResult("密码重置已迁移到统一身份认证，请联系管理员或使用身份认证中心的找回密码流程。");
   }
 
   function logout() {
+    if (oidcEnabled) {
+      void oidcManager.signoutRedirect();
+    }
     setToken("");
     setActor(null);
     setSelectedProjectId("");
@@ -133,6 +137,7 @@ export function App() {
   }
 
   if (!actor) {
+    if (oidcEnabled) return <OidcLogin />;
     return (
       <LoginForm
         username={username}

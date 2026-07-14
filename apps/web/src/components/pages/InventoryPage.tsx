@@ -81,7 +81,7 @@ export function InventoryPage({
       </div>
 
       <div className="split-layout">
-        <SectionCard title="耗材目录" eyebrow="Materials">
+        <SectionCard title="物资目录" eyebrow="Inventory catalog">
           <div className="catalog-grid">
             {materials.map((material) => (
               <button
@@ -95,6 +95,7 @@ export function InventoryPage({
                 <div>
                   <strong>{material.name}</strong>
                   <small>{material.spec}</small>
+                  <small>{material.returnRequired ? "器材 · 需归还" : "耗材 · 领用后不归还"}</small>
                 </div>
                 <div className="catalog-meta">
                   <span>{material.location}</span>
@@ -107,9 +108,12 @@ export function InventoryPage({
           </div>
         </SectionCard>
 
-        <SectionCard title="领用与入库" eyebrow="Actions">
+        <SectionCard title="申请、借用与入库" eyebrow="Actions">
           {!selectedMaterial ? (
-            <EmptyState title="暂无耗材数据" text="接口返回耗材后，这里会显示领用与入库操作。" />
+            <EmptyState
+              title="暂无物资数据"
+              text="接口返回物资后，这里会显示领用、借用与入库操作。"
+            />
           ) : (
             <div className="column-layout">
               <article className="detail-card">

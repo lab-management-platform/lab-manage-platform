@@ -27,29 +27,6 @@ export async function createApiApp() {
     return session;
   });
 
-  // 忘记密码：通过用户名/学号 + 手机号验证，重置为随机密码
-  app.post("/auth/forgot-password", async (request, reply) => {
-    const { identifier, phone } = (request.body ?? {}) as {
-      identifier?: string;
-      phone?: string;
-    };
-    if (!identifier?.trim() || !phone?.trim()) {
-      return reply.code(400).send({ error: "请提供账号、学号/工号或绑定手机号" });
-    }
-
-    try {
-      const newPassword = await kernel.resetPasswordByIdentifier(identifier, phone);
-      return { newPassword };
-    } catch (error) {
-      return reply.code(400).send({
-        error:
-          error instanceof Error
-            ? error.message
-            : "验证失败，请确认信息后重试，或联系实验室管理员。"
-      });
-    }
-  });
-
   app.get("/auth/me", async (request, reply) => {
     const authorization = Array.isArray(request.headers.authorization)
       ? request.headers.authorization[0]
@@ -59,6 +36,17 @@ export async function createApiApp() {
       return reply.code(401).send({ error: "Unauthorized" });
     }
 
+    return actor;
+  });
+
+  app.get("/api/v1/me", async (request, reply) => {
+    const authorization = Array.isArray(request.headers.authorization)
+      ? request.headers.authorization[0]
+      : request.headers.authorization;
+    const actor = await kernel.authenticate(authorization ?? "");
+    if (!actor) {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
     return actor;
   });
 
@@ -336,32 +324,34 @@ export async function createApiApp() {
   });
 
   for (const route of kernel.routes) {
-    app.route({
-      method: route.method,
-      url: route.path,
-      handler: async (request, reply) => {
-        const authorization = Array.isArray(request.headers.authorization)
-          ? request.headers.authorization[0]
-          : request.headers.authorization;
-        const actor = await kernel.authenticate(authorization ?? "");
-        if (route.permission && !actor) {
-          return reply.code(401).send({ error: "Unauthorized" });
+    for (const url of [route.path, `/api/v1${route.path}`]) {
+      app.route({
+        method: route.method,
+        url,
+        handler: async (request, reply) => {
+          const authorization = Array.isArray(request.headers.authorization)
+            ? request.headers.authorization[0]
+            : request.headers.authorization;
+          const actor = await kernel.authenticate(authorization ?? "");
+          if (route.permission && !actor) {
+            return reply.code(401).send({ error: "Unauthorized" });
+          }
+
+          if (route.permission && actor) {
+            kernel.assertPermission(actor, route.permission);
+          }
+
+          const result = await route.handler({
+            actor,
+            body: request.body,
+            query: request.query,
+            params: request.params as Record<string, string>
+          });
+
+          return reply.code(result.status ?? 200).send(result.body);
         }
-
-        if (route.permission && actor) {
-          kernel.assertPermission(actor, route.permission);
-        }
-
-        const result = await route.handler({
-          actor,
-          body: request.body,
-          query: request.query,
-          params: request.params as Record<string, string>
-        });
-
-        return reply.code(result.status ?? 200).send(result.body);
-      }
-    });
+      });
+    }
   }
 
   return app;

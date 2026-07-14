@@ -40,6 +40,11 @@ export interface Material {
   unit: string;
   location: string;
   manager: string;
+  categoryId?: string;
+  categoryName?: string;
+  returnRequired?: boolean;
+  serialRequired?: boolean;
+  dynamicAttributes?: Record<string, string | number | boolean | null>;
 }
 
 export interface InventoryApplication {

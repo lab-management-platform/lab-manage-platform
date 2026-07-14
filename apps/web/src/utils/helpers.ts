@@ -13,7 +13,6 @@ import type {
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
 export const applicationPreviewLimit = 8;
 export const accountPreviewLimit = 10;
-export const defaultResetPassword = "Student@123456";
 export const phonePattern = /^1[3-9]\d{9}$/;
 
 export function toDatetimeLocal(date: Date) {

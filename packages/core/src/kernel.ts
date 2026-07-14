@@ -117,22 +117,6 @@ export class Kernel {
     return this.options.auth.updateUserRole(targetUserId, role);
   }
 
-  async resetPasswordByIdentifier(identifier: string, phone: string): Promise<string> {
-    const users = await this.options.auth.listUsers?.(identifier);
-    if (!users || users.length === 0) {
-      throw new Error("未找到匹配的用户");
-    }
-    const user = users.find(
-      (u) => u.phone === phone && [u.username, u.identityNo].some((v) => v === identifier)
-    );
-    if (!user) {
-      throw new Error("手机号不匹配或未绑定");
-    }
-    const newPassword = `Lab${Math.random().toString(36).slice(2, 10)}`;
-    await this.options.auth.resetUserPassword?.(user.id, newPassword);
-    return newPassword;
-  }
-
   assertPermission(actor: Actor, permission: RegisteredRoute["permission"]): void {
     if (permission) {
       this.options.auth.assertPermission(actor, permission);

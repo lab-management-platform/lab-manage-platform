@@ -51,10 +51,19 @@ export function Sidebar({
                 {item.icon}
               </span>
               <span>{item.label}</span>
+              <span className="nav-chevron" aria-hidden="true">
+                {item.children ? "›" : ""}
+              </span>
             </button>
           );
         })}
       </nav>
+
+      <div className="sidebar-route-hint">
+        <span>当前工作域</span>
+        <strong>{allowedItems.find((item) => item.id === activeView)?.label}</strong>
+        <small>进入模块后使用列表、详情和子资源完成操作。</small>
+      </div>
 
       <div className="sidebar-footer">
         <span className="sidebar-foot-label">当前身份</span>
