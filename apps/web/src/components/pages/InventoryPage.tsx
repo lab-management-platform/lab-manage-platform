@@ -3,6 +3,7 @@ import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
 import type {
   Actor,
   InventoryApplication,
+  InventoryCategory,
   InventoryLoan,
   Material,
   Project,
@@ -13,6 +14,7 @@ import type {
 interface InventoryPageProps {
   actor: Actor;
   summary: Summary;
+  categories: InventoryCategory[];
   materials: Material[];
   applications: InventoryApplication[];
   stockMovements: StockMovement[];
@@ -37,6 +39,7 @@ interface InventoryPageProps {
 export function InventoryPage({
   actor,
   summary,
+  categories,
   materials,
   applications,
   stockMovements,
@@ -53,9 +56,17 @@ export function InventoryPage({
   const [reason, setReason] = useState("课题实验耗材申请");
   const [stockInQuantity, setStockInQuantity] = useState(10);
   const [reviewRemark, setReviewRemark] = useState("库存确认无误，批准领用。");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
+  const visibleMaterials = useMemo(
+    () =>
+      categoryFilter === "all"
+        ? materials
+        : materials.filter((material) => material.categoryId === categoryFilter),
+    [categoryFilter, materials]
+  );
   const selectedMaterial =
-    materials.find((material) => material.id === selectedMaterialId) ?? materials[0];
+    visibleMaterials.find((material) => material.id === selectedMaterialId) ?? visibleMaterials[0];
   const filteredApplications = useMemo(
     () =>
       selectedProjectId
@@ -88,30 +99,60 @@ export function InventoryPage({
 
       <div className="split-layout">
         <SectionCard title="物资目录" eyebrow="Inventory catalog">
-          <div className="catalog-grid">
-            {materials.map((material) => (
-              <button
-                key={material.id}
-                type="button"
-                className={
-                  material.id === selectedMaterial?.id ? "catalog-card active" : "catalog-card"
-                }
-                onClick={() => setSelectedMaterialId(material.id)}
+          <div className="inventory-category-toolbar">
+            <label>
+              物资类别
+              <select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
               >
-                <div>
-                  <strong>{material.name}</strong>
-                  <small>{material.spec}</small>
-                  <small>{material.returnRequired ? "器材 · 需归还" : "耗材 · 领用后不归还"}</small>
-                </div>
-                <div className="catalog-meta">
-                  <span>{material.location}</span>
-                  <StatusBadge tone={material.stock <= material.warnStock ? "danger" : "active"}>
-                    {material.stock <= material.warnStock ? "预警" : "充足"}
-                  </StatusBadge>
-                </div>
-              </button>
-            ))}
+                <option value="all">全部类别</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="inventory-category-rules">
+              {categories.map((category) => (
+                <span key={category.id} className="panel-tag">
+                  {category.name} · {category.returnRequired ? "需归还" : "不归还"}
+                  {category.serialRequired ? " · 序列号" : ""}
+                </span>
+              ))}
+            </div>
           </div>
+          {visibleMaterials.length === 0 ? (
+            <EmptyState title="暂无该类别物资" text="请切换类别或联系管理员维护物资目录。" />
+          ) : (
+            <div className="catalog-grid">
+              {visibleMaterials.map((material) => (
+                <button
+                  key={material.id}
+                  type="button"
+                  className={
+                    material.id === selectedMaterial?.id ? "catalog-card active" : "catalog-card"
+                  }
+                  onClick={() => setSelectedMaterialId(material.id)}
+                >
+                  <div>
+                    <strong>{material.name}</strong>
+                    <small>{material.spec}</small>
+                    <small>
+                      {material.returnRequired ? "器材 · 需归还" : "耗材 · 领用后不归还"}
+                    </small>
+                  </div>
+                  <div className="catalog-meta">
+                    <span>{material.location}</span>
+                    <StatusBadge tone={material.stock <= material.warnStock ? "danger" : "active"}>
+                      {material.stock <= material.warnStock ? "预警" : "充足"}
+                    </StatusBadge>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </SectionCard>
 
         <SectionCard title="申请、借用与入库" eyebrow="Actions">

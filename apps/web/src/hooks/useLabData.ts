@@ -9,6 +9,7 @@ import type {
   FaqTemplate,
   FileVersion,
   InventoryApplication,
+  InventoryCategory,
   InventoryLoan,
   KnowledgeDocument,
   KnowledgeSource,
@@ -47,6 +48,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 export function useLabData(token: string, actor: Actor | null) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [applications, setApplications] = useState<InventoryApplication[]>([]);
+  const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [loans, setLoans] = useState<InventoryLoan[]>([]);
   const [summary, setSummary] = useState<Summary>({
@@ -100,6 +102,9 @@ export function useLabData(token: string, actor: Actor | null) {
       fetch(`${apiBase}/inventory/materials`, { headers })
         .then(parseResponse<Material[]>)
         .then(setMaterials),
+      fetch(`${apiBase}/inventory/categories`, { headers })
+        .then(parseResponse<InventoryCategory[]>)
+        .then(setInventoryCategories),
       fetch(`${apiBase}/inventory/applications`, { headers })
         .then(parseResponse<InventoryApplication[]>)
         .then(setApplications),
@@ -235,6 +240,7 @@ export function useLabData(token: string, actor: Actor | null) {
     summary,
     dashboard,
     materials,
+    inventoryCategories,
     applications,
     stockMovements,
     loans,

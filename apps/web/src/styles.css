@@ -769,6 +769,39 @@ h3,
   background: rgba(247, 242, 233, 0.72);
 }
 
+.inventory-category-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid rgba(180, 138, 82, 0.16);
+  border-radius: 16px;
+  background: rgba(247, 242, 233, 0.72);
+}
+
+.inventory-category-toolbar label {
+  display: grid;
+  gap: 5px;
+  min-width: 180px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inventory-category-toolbar select {
+  padding: 9px 12px;
+  border-radius: 11px;
+}
+
+.inventory-category-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .project-filter-bar label {
   display: grid;
   gap: 5px;

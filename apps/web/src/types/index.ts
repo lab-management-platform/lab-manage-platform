@@ -47,6 +47,17 @@ export interface Material {
   dynamicAttributes?: Record<string, string | number | boolean | null>;
 }
 
+export interface InventoryCategory {
+  id: string;
+  code: string;
+  name: string;
+  returnRequired: boolean;
+  quantityMode: "quantity" | "serialized";
+  serialRequired: boolean;
+  dynamicSchema: Record<string, unknown>;
+  active: boolean;
+}
+
 export interface InventoryApplication {
   id: string;
   materialId: string;

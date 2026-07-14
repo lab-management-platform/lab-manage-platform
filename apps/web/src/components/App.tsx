@@ -201,6 +201,7 @@ export function App() {
               actor={actor}
               actorName={actor.displayName}
               summary={lab.summary}
+              categories={lab.inventoryCategories}
               projects={lab.projects}
               tasks={lab.projectTasks}
               materials={lab.materials}

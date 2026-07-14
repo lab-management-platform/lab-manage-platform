@@ -6,6 +6,17 @@ import pg from "pg";
 
 type ApplicationStatus = "pending" | "approved" | "rejected";
 
+interface InventoryCategory {
+  id: string;
+  code: string;
+  name: string;
+  returnRequired: boolean;
+  quantityMode: "quantity" | "serialized";
+  serialRequired: boolean;
+  dynamicSchema: Record<string, unknown>;
+  active: boolean;
+}
+
 interface Material {
   id: string;
   name: string;
@@ -90,6 +101,7 @@ interface InventoryRepository {
     pendingApplications: number;
     approvedApplications: number;
   }>;
+  listCategories(): Promise<InventoryCategory[]>;
   listMaterials(): Promise<Material[]>;
   listApplications(): Promise<InventoryApplication[]>;
   listStockMovements(): Promise<StockMovement[]>;
@@ -185,6 +197,28 @@ const seedApplications: InventoryApplication[] = [
 ];
 
 class MemoryInventoryRepository implements InventoryRepository {
+  private readonly categories: InventoryCategory[] = [
+    {
+      id: "category-consumable",
+      code: "consumable",
+      name: "耗材",
+      returnRequired: false,
+      quantityMode: "quantity",
+      serialRequired: false,
+      dynamicSchema: {},
+      active: true
+    },
+    {
+      id: "category-equipment",
+      code: "equipment",
+      name: "器材",
+      returnRequired: true,
+      quantityMode: "serialized",
+      serialRequired: true,
+      dynamicSchema: { model: "型号", condition: "状态" },
+      active: true
+    }
+  ];
   private readonly materials = structuredClone(seedMaterials);
   private readonly applications = structuredClone(seedApplications);
   private readonly stockMovements: StockMovement[] = [];
@@ -206,6 +240,10 @@ class MemoryInventoryRepository implements InventoryRepository {
         (application) => application.status === "approved"
       ).length
     };
+  }
+
+  async listCategories(): Promise<InventoryCategory[]> {
+    return structuredClone(this.categories);
   }
 
   async listMaterials(): Promise<Material[]> {
@@ -592,6 +630,17 @@ class PostgresInventoryRepository implements InventoryRepository {
     };
   }
 
+  async listCategories(): Promise<InventoryCategory[]> {
+    const result = await this.pool.query(
+      `SELECT id, code, name, return_required, quantity_mode, serial_required,
+              dynamic_schema, active
+       FROM inventory.item_category
+       WHERE active = true
+       ORDER BY name`
+    );
+    return result.rows.map(mapCategoryRow);
+  }
+
   async listMaterials(): Promise<Material[]> {
     const result = await this.pool.query<{
       id: string;
@@ -958,6 +1007,22 @@ class PostgresInventoryRepository implements InventoryRepository {
   }
 }
 
+function mapCategoryRow(row: Record<string, unknown>): InventoryCategory {
+  return {
+    id: String(row.id),
+    code: String(row.code),
+    name: String(row.name),
+    returnRequired: Boolean(row.return_required),
+    quantityMode: row.quantity_mode === "serialized" ? "serialized" : "quantity",
+    serialRequired: Boolean(row.serial_required),
+    dynamicSchema:
+      typeof row.dynamic_schema === "object" && row.dynamic_schema !== null
+        ? (row.dynamic_schema as Record<string, unknown>)
+        : {},
+    active: Boolean(row.active)
+  };
+}
+
 function mapApplicationRow(row: Record<string, unknown>): InventoryApplication {
   return {
     id: String(row.id),
@@ -1044,6 +1109,12 @@ export const inventoryPlugin: PluginManifest = {
     },
     {
       method: "GET",
+      path: "/inventory/categories",
+      permission: "inventory:read",
+      summary: "获取物资类别与动态属性规则"
+    },
+    {
+      method: "GET",
       path: "/inventory/applications",
       permission: "inventory:read",
       summary: "获取耗材申请列表"
@@ -1117,6 +1188,13 @@ export const inventoryPlugin: PluginManifest = {
           permission: "inventory:read",
           summary: "获取耗材列表",
           handler: async () => ({ body: await repository.listMaterials() })
+        },
+        {
+          method: "GET",
+          path: "/inventory/categories",
+          permission: "inventory:read",
+          summary: "获取物资类别与动态属性规则",
+          handler: async () => ({ body: await repository.listCategories() })
         },
         {
           method: "GET",

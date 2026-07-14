@@ -62,6 +62,21 @@ describe("api integration", () => {
     );
   });
 
+  it("returns物资类别及归还规则", async () => {
+    const categories = await app.inject({
+      method: "GET",
+      url: "/api/v1/inventory/categories",
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(categories.statusCode).toBe(200);
+    expect(categories.json<Array<{ name: string; returnRequired: boolean }>>()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "耗材", returnRequired: false }),
+        expect.objectContaining({ name: "器材", returnRequired: true })
+      ])
+    );
+  });
+
   it("creates a user, updates role, and removes the user through HTTP contracts", async () => {
     const suffix = Date.now();
     const created = await app.inject({
