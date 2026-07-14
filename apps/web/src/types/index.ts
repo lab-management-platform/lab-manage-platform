@@ -96,6 +96,16 @@ export interface Summary {
   approvedApplications: number;
 }
 
+export interface DashboardSnapshot {
+  memberCount: number;
+  projectCount: number;
+  activeProjectCount: number;
+  meetingCount: number;
+  notificationCount: number;
+  annualProjects: Record<string, number>;
+  inventory: Summary;
+}
+
 export interface ManagedUser {
   id: string;
   username: string;

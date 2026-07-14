@@ -38,6 +38,30 @@ describe("api integration", () => {
     expect(profile.json<{ username: string }>().username).toBe("admin");
   });
 
+  it("returns an aggregated dashboard snapshot", async () => {
+    const dashboard = await app.inject({
+      method: "GET",
+      url: "/api/v1/dashboard",
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(dashboard.statusCode).toBe(200);
+    expect(
+      dashboard.json<{
+        projectCount: number;
+        activeProjectCount: number;
+        memberCount: number;
+        annualProjects: Record<string, number>;
+      }>()
+    ).toEqual(
+      expect.objectContaining({
+        projectCount: expect.any(Number),
+        activeProjectCount: expect.any(Number),
+        memberCount: expect.any(Number),
+        annualProjects: expect.any(Object)
+      })
+    );
+  });
+
   it("creates a user, updates role, and removes the user through HTTP contracts", async () => {
     const suffix = Date.now();
     const created = await app.inject({

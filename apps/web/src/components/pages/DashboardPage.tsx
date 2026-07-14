@@ -1,6 +1,7 @@
 import { SectionCard, StatCard, StatusBadge, EmptyState } from "../shared/Ui";
 import type {
   Actor,
+  DashboardSnapshot,
   InventoryApplication,
   Material,
   NotificationItem,
@@ -18,6 +19,7 @@ interface DashboardPageProps {
   materials: Material[];
   applications: InventoryApplication[];
   notifications: NotificationItem[];
+  dashboard: DashboardSnapshot | null;
   onOpenView: (view: "projects" | "inventory" | "files" | "meetings" | "ai") => void;
   onSelectProject: (projectId: string) => void;
 }
@@ -31,6 +33,7 @@ export function DashboardPage({
   materials,
   applications,
   notifications,
+  dashboard,
   onOpenView,
   onSelectProject
 }: DashboardPageProps) {
@@ -67,17 +70,21 @@ export function DashboardPage({
             hint="需要处理的领用申请"
             accent="gold"
           />
-          <StatCard title="项目进行中" value={activeProjects.length} hint="跨课题并行推进" />
+          <StatCard
+            title="项目进行中"
+            value={dashboard?.activeProjectCount ?? activeProjects.length}
+            hint="由服务端聚合统计"
+          />
           <StatCard
             title="低库存预警"
-            value={summary.lowStockCount}
+            value={dashboard?.inventory.lowStockCount ?? summary.lowStockCount}
             hint="建议优先补货"
             accent="danger"
           />
           <StatCard
             title="已批准"
-            value={summary.approvedApplications}
-            hint="本周期流转完成"
+            value={dashboard?.memberCount ?? "—"}
+            hint="可见成员数量"
             accent="ink"
           />
         </div>

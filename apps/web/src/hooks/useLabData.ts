@@ -5,6 +5,7 @@ import type {
   ChatHistoryRecord,
   ChatMessage,
   ChatResponse,
+  DashboardSnapshot,
   FaqTemplate,
   FileVersion,
   InventoryApplication,
@@ -54,6 +55,7 @@ export function useLabData(token: string, actor: Actor | null) {
     pendingApplications: 0,
     approvedApplications: 0
   });
+  const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
   const [files, setFiles] = useState<LabFile[]>([]);
   const [fileVersions, setFileVersions] = useState<FileVersion[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -92,6 +94,9 @@ export function useLabData(token: string, actor: Actor | null) {
       fetch(`${apiBase}/inventory/summary`, { headers })
         .then(parseResponse<Summary>)
         .then(setSummary),
+      fetch(`${apiBase}/dashboard`, { headers })
+        .then(parseResponse<DashboardSnapshot>)
+        .then(setDashboard),
       fetch(`${apiBase}/inventory/materials`, { headers })
         .then(parseResponse<Material[]>)
         .then(setMaterials),
@@ -228,6 +233,7 @@ export function useLabData(token: string, actor: Actor | null) {
     message,
     setMessage,
     summary,
+    dashboard,
     materials,
     applications,
     stockMovements,
