@@ -757,6 +757,39 @@ h3,
   background: rgba(255, 250, 242, 0.72);
 }
 
+.project-filter-bar {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid rgba(180, 138, 82, 0.16);
+  border-radius: 16px;
+  background: rgba(247, 242, 233, 0.72);
+}
+
+.project-filter-bar label {
+  display: grid;
+  gap: 5px;
+  min-width: 150px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.project-filter-bar select {
+  padding: 9px 12px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.filter-result-count {
+  margin-left: auto;
+  padding-bottom: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .inline-link {
   color: #205c48;
   font-weight: 700;

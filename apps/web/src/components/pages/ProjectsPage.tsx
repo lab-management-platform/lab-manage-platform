@@ -233,6 +233,9 @@ export function ProjectsPage({
   const [treeFlipped, setTreeFlipped] = useState(false);
   const [treeWorkspaceOpen, setTreeWorkspaceOpen] = useState(false);
   const [noteWorkspaceOpen, setNoteWorkspaceOpen] = useState(false);
+  const [yearFilter, setYearFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [ownerFilter, setOwnerFilter] = useState("all");
 
   useEffect(() => {
     setReportMemberDraft(
@@ -248,6 +251,35 @@ export function ProjectsPage({
 
   const ownerOptions = users.filter((user) => user.role === "student");
   const advisorOptions = users.filter((user) => ["professor", "lab_admin"].includes(user.role));
+  const projectYears = useMemo(
+    () =>
+      [
+        ...new Set(
+          projects.map((project) => new Date(project.startsAt ?? project.createdAt).getFullYear())
+        )
+      ]
+        .filter((year) => Number.isFinite(year))
+        .sort((a, b) => b - a),
+    [projects]
+  );
+  const projectOwners = useMemo(
+    () => [
+      ...new Map(projects.map((project) => [project.ownerUserId, project.ownerName])).entries()
+    ],
+    [projects]
+  );
+  const visibleProjects = useMemo(
+    () =>
+      projects.filter((project) => {
+        const year = new Date(project.startsAt ?? project.createdAt).getFullYear().toString();
+        return (
+          (yearFilter === "all" || year === yearFilter) &&
+          (statusFilter === "all" || project.status === statusFilter) &&
+          (ownerFilter === "all" || project.ownerUserId === ownerFilter)
+        );
+      }),
+    [ownerFilter, projects, statusFilter, yearFilter]
+  );
   const currentMember = members.find((member) => member.userId === actor.id);
   const canManageProject =
     actor.permissions.includes("project:write") ||
@@ -327,37 +359,81 @@ export function ProjectsPage({
             ) : null
           }
         >
-          <div className="project-selector-grid">
-            {projects.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                className={
-                  project.id === activeProject?.id ? "project-tile active" : "project-tile"
-                }
-                onClick={() => onSelectProject(project.id)}
+          <div className="project-filter-bar">
+            <label>
+              年度
+              <select value={yearFilter} onChange={(event) => setYearFilter(event.target.value)}>
+                <option value="all">全部年度</option>
+                {projectYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year} 年
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              状态
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
               >
-                <div>
-                  <strong>{project.name}</strong>
-                  <small>
-                    {project.ownerName}
-                    {project.advisorName ? ` · 导师 ${project.advisorName}` : ""}
-                  </small>
-                </div>
-                <StatusBadge
-                  tone={
-                    project.status === "active"
-                      ? "active"
-                      : project.status === "pending"
-                        ? "pending"
-                        : "muted"
-                  }
-                >
-                  {projectStatusText(project.status)}
-                </StatusBadge>
-              </button>
-            ))}
+                <option value="all">全部状态</option>
+                <option value="active">进行中</option>
+                <option value="pending">待审批</option>
+                <option value="completed">已完成</option>
+                <option value="archived">已归档</option>
+              </select>
+            </label>
+            <label>
+              负责人
+              <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+                <option value="all">全部负责人</option>
+                {projectOwners.map(([ownerId, ownerName]) => (
+                  <option key={ownerId} value={ownerId}>
+                    {ownerName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="filter-result-count">
+              显示 {visibleProjects.length} / {projects.length} 个项目
+            </span>
           </div>
+          {visibleProjects.length === 0 ? (
+            <EmptyState title="没有匹配项目" text="请调整年度、状态或负责人筛选条件。" />
+          ) : (
+            <div className="project-selector-grid">
+              {visibleProjects.map((project) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  className={
+                    project.id === activeProject?.id ? "project-tile active" : "project-tile"
+                  }
+                  onClick={() => onSelectProject(project.id)}
+                >
+                  <div>
+                    <strong>{project.name}</strong>
+                    <small>
+                      {project.ownerName}
+                      {project.advisorName ? ` · 导师 ${project.advisorName}` : ""}
+                    </small>
+                  </div>
+                  <StatusBadge
+                    tone={
+                      project.status === "active"
+                        ? "active"
+                        : project.status === "pending"
+                          ? "pending"
+                          : "muted"
+                    }
+                  >
+                    {projectStatusText(project.status)}
+                  </StatusBadge>
+                </button>
+              ))}
+            </div>
+          )}
         </SectionCard>
 
         {actor.permissions.includes("project:write") ? (
