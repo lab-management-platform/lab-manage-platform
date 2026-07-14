@@ -1,5 +1,6 @@
 import { SectionCard, StatCard, StatusBadge, EmptyState } from "../shared/Ui";
 import type {
+  Actor,
   InventoryApplication,
   Material,
   NotificationItem,
@@ -9,6 +10,7 @@ import type {
 } from "../../types";
 
 interface DashboardPageProps {
+  actor: Actor;
   actorName: string;
   summary: Summary;
   projects: Project[];
@@ -16,16 +18,21 @@ interface DashboardPageProps {
   materials: Material[];
   applications: InventoryApplication[];
   notifications: NotificationItem[];
+  onOpenView: (view: "projects" | "inventory" | "files" | "meetings" | "ai") => void;
+  onSelectProject: (projectId: string) => void;
 }
 
 export function DashboardPage({
+  actor,
   actorName,
   summary,
   projects,
   tasks,
   materials,
   applications,
-  notifications
+  notifications,
+  onOpenView,
+  onSelectProject
 }: DashboardPageProps) {
   const activeProjects = projects.filter((project) => project.status === "active");
   const lowStock = materials.filter((material) => material.stock <= material.warnStock).slice(0, 5);
@@ -36,6 +43,12 @@ export function DashboardPage({
   const recentNotices = [...notifications]
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
     .slice(0, 4);
+  const roleLabel =
+    actor.role === "professor" ? "教师视角" : actor.role === "lab_admin" ? "管理视角" : "成员视角";
+  const canApprove =
+    actor.permissions.includes("inventory:approve") ||
+    actor.role === "professor" ||
+    actor.role === "lab_admin";
 
   return (
     <div className="page-grid">
@@ -70,6 +83,74 @@ export function DashboardPage({
         </div>
       </section>
 
+      <section className="dashboard-command-strip">
+        <div>
+          <p className="eyebrow">{roleLabel} · 快捷入口</p>
+          <strong>从一个入口处理今天最重要的工作</strong>
+          <span>项目、物资、资料和会议保持在同一条上下文里。</span>
+        </div>
+        <div className="dashboard-command-actions">
+          <button className="primary-button" type="button" onClick={() => onOpenView("projects")}>
+            查看我的项目
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => onOpenView("inventory")}
+          >
+            {canApprove ? "进入审批中心" : "申请物资"}
+          </button>
+          <button className="tertiary-button" type="button" onClick={() => onOpenView("meetings")}>
+            查看会议通知
+          </button>
+        </div>
+      </section>
+
+      <SectionCard
+        title="组织概览"
+        eyebrow="Drill-down"
+        extra={<span className="panel-tag">可继续下钻</span>}
+      >
+        <div className="dashboard-drill-grid">
+          <button
+            className="dashboard-drill-card"
+            type="button"
+            onClick={() => onOpenView("projects")}
+          >
+            <span>成员与项目</span>
+            <strong>{projects.length}</strong>
+            <small>项目 → 负责人 → 任务与成果</small>
+          </button>
+          <button
+            className="dashboard-drill-card"
+            type="button"
+            onClick={() => onOpenView("inventory")}
+          >
+            <span>物资与库存</span>
+            <strong>{materials.length}</strong>
+            <small>物资 → 库存 → 申请与借还流水</small>
+          </button>
+          <button
+            className="dashboard-drill-card"
+            type="button"
+            onClick={() => onOpenView("files")}
+          >
+            <span>资料与知识</span>
+            <strong>NAS</strong>
+            <small>项目资料 → 文件版本 → 引用来源</small>
+          </button>
+          <button
+            className="dashboard-drill-card"
+            type="button"
+            onClick={() => onOpenView("meetings")}
+          >
+            <span>会议与进展</span>
+            <strong>{notifications.length}</strong>
+            <small>会议 → 参会 → 纪要与项目进度</small>
+          </button>
+        </div>
+      </SectionCard>
+
       <div className="split-layout">
         <SectionCard title="项目概览" eyebrow="Projects">
           {activeProjects.length === 0 ? (
@@ -80,7 +161,12 @@ export function DashboardPage({
           ) : (
             <div className="data-list">
               {activeProjects.slice(0, 4).map((project) => (
-                <article key={project.id} className="list-row project-row">
+                <button
+                  key={project.id}
+                  className="list-row project-row dashboard-project-row"
+                  type="button"
+                  onClick={() => onSelectProject(project.id)}
+                >
                   <div>
                     <strong>{project.name}</strong>
                     <small>{project.ownerName}</small>
@@ -94,7 +180,7 @@ export function DashboardPage({
                     </span>
                   </div>
                   <StatusBadge tone="active">进行中</StatusBadge>
-                </article>
+                </button>
               ))}
             </div>
           )}

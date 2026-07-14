@@ -21,6 +21,8 @@ interface Project {
   advisorIdentityNo?: string;
   startsAt?: string;
   endsAt?: string;
+  documentUrl?: string;
+  repositoryUrl?: string;
   status: ProjectStatus;
   reportCycleDays: number;
   lastReportAt?: string;
@@ -146,6 +148,8 @@ interface ProjectCreateRequest {
   description?: string;
   startsAt?: string;
   endsAt?: string;
+  documentUrl?: string;
+  repositoryUrl?: string;
   ownerName?: string;
   ownerIdentityNo?: string;
   ownerUserId?: string;
@@ -161,6 +165,8 @@ interface ProjectUpdateRequest {
   description?: string;
   startsAt?: string;
   endsAt?: string;
+  documentUrl?: string;
+  repositoryUrl?: string;
   status?: ProjectStatus;
   ownerUserId?: string;
   advisorUserId?: string | null;
@@ -765,6 +771,8 @@ class PostgresProjectRepository implements ProjectRepository {
         advisor_identity_no TEXT,
         starts_at TIMESTAMPTZ,
         ends_at TIMESTAMPTZ,
+        document_url TEXT,
+        repository_url TEXT,
         status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'archived', 'completed')),
         report_cycle_days INTEGER NOT NULL DEFAULT 14,
         last_report_at TIMESTAMPTZ,
@@ -778,6 +786,8 @@ class PostgresProjectRepository implements ProjectRepository {
       ALTER TABLE projects.project ADD COLUMN IF NOT EXISTS advisor_user_id TEXT;
       ALTER TABLE projects.project ADD COLUMN IF NOT EXISTS advisor_name TEXT;
       ALTER TABLE projects.project ADD COLUMN IF NOT EXISTS advisor_identity_no TEXT;
+      ALTER TABLE projects.project ADD COLUMN IF NOT EXISTS document_url TEXT;
+      ALTER TABLE projects.project ADD COLUMN IF NOT EXISTS repository_url TEXT;
       ALTER TABLE projects.project ADD COLUMN IF NOT EXISTS report_cycle_days INTEGER NOT NULL DEFAULT 14;
       ALTER TABLE projects.project ADD COLUMN IF NOT EXISTS last_report_at TIMESTAMPTZ;
       ALTER TABLE projects.project ADD COLUMN IF NOT EXISTS next_report_due_at TIMESTAMPTZ;
@@ -1092,10 +1102,10 @@ class PostgresProjectRepository implements ProjectRepository {
     const result = await this.pool.query(
       `INSERT INTO projects.project (
         id, name, description, owner_id, owner_name, owner_user_id, owner_identity_no,
-        advisor_user_id, advisor_name, advisor_identity_no, starts_at, ends_at, status,
+        advisor_user_id, advisor_name, advisor_identity_no, starts_at, ends_at, document_url, repository_url, status,
         report_cycle_days, last_report_at, next_report_due_at
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
       ) RETURNING *`,
       [
         randomUUID(),
@@ -1110,6 +1120,8 @@ class PostgresProjectRepository implements ProjectRepository {
         input.advisorIdentityNo ?? null,
         input.startsAt ?? null,
         input.endsAt ?? null,
+        input.documentUrl ?? null,
+        input.repositoryUrl ?? null,
         input.status,
         input.reportCycleDays,
         input.lastReportAt ?? null,
@@ -1139,6 +1151,8 @@ class PostgresProjectRepository implements ProjectRepository {
       advisorIdentityNo: "advisor_identity_no",
       startsAt: "starts_at",
       endsAt: "ends_at",
+      documentUrl: "document_url",
+      repositoryUrl: "repository_url",
       status: "status",
       reportCycleDays: "report_cycle_days",
       lastReportAt: "last_report_at",
@@ -1671,6 +1685,8 @@ function mapProjectRow(row: Record<string, unknown>): Project {
     advisorIdentityNo: row.advisor_identity_no ? String(row.advisor_identity_no) : undefined,
     startsAt: row.starts_at ? new Date(String(row.starts_at)).toISOString() : undefined,
     endsAt: row.ends_at ? new Date(String(row.ends_at)).toISOString() : undefined,
+    documentUrl: row.document_url ? String(row.document_url) : undefined,
+    repositoryUrl: row.repository_url ? String(row.repository_url) : undefined,
     status: row.status as ProjectStatus,
     reportCycleDays: Number(row.report_cycle_days ?? 14),
     lastReportAt: row.last_report_at
@@ -2240,6 +2256,8 @@ export const projectsPlugin: PluginManifest = {
               advisorIdentityNo: advisorUser?.identityNo,
               startsAt: req.startsAt,
               endsAt: req.endsAt,
+              documentUrl: req.documentUrl?.trim() || undefined,
+              repositoryUrl: req.repositoryUrl?.trim() || undefined,
               status: "active",
               reportCycleDays: req.reportCycleDays ?? 14,
               lastReportAt: undefined,
@@ -2293,6 +2311,9 @@ export const projectsPlugin: PluginManifest = {
             if (req.description !== undefined) updateInput.description = req.description.trim();
             if (req.startsAt !== undefined) updateInput.startsAt = req.startsAt;
             if (req.endsAt !== undefined) updateInput.endsAt = req.endsAt;
+            if (req.documentUrl !== undefined) updateInput.documentUrl = req.documentUrl.trim();
+            if (req.repositoryUrl !== undefined)
+              updateInput.repositoryUrl = req.repositoryUrl.trim();
             if (req.status !== undefined) updateInput.status = req.status;
             if (req.reportCycleDays !== undefined)
               updateInput.reportCycleDays = req.reportCycleDays;

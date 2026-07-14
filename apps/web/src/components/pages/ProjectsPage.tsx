@@ -45,6 +45,8 @@ interface ProjectsPageProps {
     advisorIdentityNo?: string;
     advisorUserId?: string;
     reportCycleDays?: number;
+    documentUrl?: string;
+    repositoryUrl?: string;
   }) => Promise<void>;
   onApproveProject: (projectId: string) => Promise<void>;
   onCreateTask: (payload: {
@@ -202,7 +204,9 @@ export function ProjectsPage({
     advisorUserId: "",
     advisorName: "",
     advisorIdentityNo: "",
-    reportCycleDays: "14"
+    reportCycleDays: "14",
+    documentUrl: "",
+    repositoryUrl: ""
   });
   const [taskDraft, setTaskDraft] = useState({ title: "", assigneeId: "", priority: "medium" });
   const [memberDraft, setMemberDraft] = useState({
@@ -371,7 +375,9 @@ export function ProjectsPage({
                   advisorName: draftProject.advisorName || undefined,
                   advisorIdentityNo: draftProject.advisorIdentityNo || undefined,
                   advisorUserId: draftProject.advisorUserId || undefined,
-                  reportCycleDays: Number(draftProject.reportCycleDays || 14)
+                  reportCycleDays: Number(draftProject.reportCycleDays || 14),
+                  documentUrl: draftProject.documentUrl || undefined,
+                  repositoryUrl: draftProject.repositoryUrl || undefined
                 });
                 setDraftProject({
                   name: "",
@@ -382,7 +388,9 @@ export function ProjectsPage({
                   advisorUserId: "",
                   advisorName: "",
                   advisorIdentityNo: "",
-                  reportCycleDays: "14"
+                  reportCycleDays: "14",
+                  documentUrl: "",
+                  repositoryUrl: ""
                 });
               }}
             >
@@ -455,6 +463,31 @@ export function ProjectsPage({
                   value={draftProject.description}
                   onChange={(event) =>
                     setDraftProject((current) => ({ ...current, description: event.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                项目文档地址
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  value={draftProject.documentUrl}
+                  onChange={(event) =>
+                    setDraftProject((current) => ({ ...current, documentUrl: event.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                项目仓库地址
+                <input
+                  type="url"
+                  placeholder="https://github.com/..."
+                  value={draftProject.repositoryUrl}
+                  onChange={(event) =>
+                    setDraftProject((current) => ({
+                      ...current,
+                      repositoryUrl: event.target.value
+                    }))
                   }
                 />
               </label>
@@ -547,6 +580,36 @@ export function ProjectsPage({
                         {activeProject.nextReportDueAt
                           ? new Date(activeProject.nextReportDueAt).toLocaleDateString("zh-CN")
                           : "未设定"}
+                      </span>
+                      <span>
+                        项目文档：{" "}
+                        {activeProject.documentUrl ? (
+                          <a
+                            className="inline-link"
+                            href={activeProject.documentUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            打开文档
+                          </a>
+                        ) : (
+                          "未设置"
+                        )}
+                      </span>
+                      <span>
+                        项目仓库：{" "}
+                        {activeProject.repositoryUrl ? (
+                          <a
+                            className="inline-link"
+                            href={activeProject.repositoryUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            打开仓库
+                          </a>
+                        ) : (
+                          "未设置"
+                        )}
                       </span>
                     </div>
                   </article>

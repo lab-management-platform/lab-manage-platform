@@ -259,6 +259,8 @@ export interface Project {
   advisorIdentityNo?: string;
   startsAt?: string;
   endsAt?: string;
+  documentUrl?: string;
+  repositoryUrl?: string;
   status: ProjectStatus;
   reportCycleDays: number;
   lastReportAt?: string;

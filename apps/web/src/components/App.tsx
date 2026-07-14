@@ -198,6 +198,7 @@ export function App() {
         <div className="workspace-body">
           {activeView === "dashboard" ? (
             <DashboardPage
+              actor={actor}
               actorName={actor.displayName}
               summary={lab.summary}
               projects={lab.projects}
@@ -205,6 +206,12 @@ export function App() {
               materials={lab.materials}
               applications={lab.applications}
               notifications={lab.notifications}
+              onOpenView={(view) => setActiveView(view)}
+              onSelectProject={(projectId) => {
+                setSelectedProjectId(projectId);
+                void lab.loadProjectWorkspace(projectId);
+                setActiveView("projects");
+              }}
             />
           ) : null}
 

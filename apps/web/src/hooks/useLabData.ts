@@ -532,6 +532,8 @@ export function useLabData(token: string, actor: Actor | null) {
       advisorIdentityNo?: string;
       advisorUserId?: string;
       reportCycleDays?: number;
+      documentUrl?: string;
+      repositoryUrl?: string;
     }) {
       if (!token) return;
       const project = await fetch(`${apiBase}/projects`, {

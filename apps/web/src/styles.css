@@ -670,6 +670,104 @@ h3,
   padding: 28px;
 }
 
+.dashboard-command-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px;
+  border: 1px solid rgba(47, 111, 93, 0.2);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(47, 111, 93, 0.1), rgba(255, 253, 249, 0.9)),
+    radial-gradient(circle at right, rgba(180, 138, 82, 0.14), transparent 35%);
+}
+
+.dashboard-command-strip strong,
+.dashboard-command-strip span {
+  display: block;
+}
+
+.dashboard-command-strip strong {
+  margin-bottom: 4px;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+  font-size: 19px;
+}
+
+.dashboard-command-strip span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dashboard-command-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.dashboard-drill-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-drill-card {
+  display: grid;
+  gap: 8px;
+  min-height: 142px;
+  padding: 16px;
+  border: 1px solid rgba(180, 138, 82, 0.2);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--text);
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.dashboard-drill-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(47, 111, 93, 0.36);
+  box-shadow: 0 12px 26px rgba(12, 31, 28, 0.08);
+}
+
+.dashboard-drill-card span,
+.dashboard-drill-card small {
+  color: var(--muted);
+}
+
+.dashboard-drill-card strong {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 28px;
+}
+
+.dashboard-project-row {
+  width: 100%;
+  border: 1px solid transparent;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.dashboard-project-row:hover {
+  border-color: rgba(180, 138, 82, 0.22);
+  background: rgba(255, 250, 242, 0.72);
+}
+
+.inline-link {
+  color: #205c48;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.inline-link:hover {
+  color: #9b713d;
+  text-decoration: underline;
+}
+
 .hero-panel h1 {
   margin-bottom: 8px;
   font-size: clamp(30px, 4vw, 42px);
@@ -2190,6 +2288,7 @@ h3,
   }
 
   .hero-stats,
+  .dashboard-drill-grid,
   .project-selector-grid,
   .catalog-grid,
   .file-card-grid,
@@ -2284,6 +2383,15 @@ h3,
   }
 
   .notes-editor-meta {
+    justify-content: flex-start;
+  }
+
+  .dashboard-command-strip {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-command-actions {
     justify-content: flex-start;
   }
 

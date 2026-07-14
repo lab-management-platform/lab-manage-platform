@@ -21,14 +21,14 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   {
     id: "dashboard",
-    label: "Dashboard",
+    label: "工作台",
     icon: "◫",
     roles: ["lab_admin", "professor", "student"],
     children: ["我的概览", "我的待办", "通知中心", "快捷提交"]
   },
   {
     id: "projects",
-    label: "项目管理",
+    label: "项目",
     icon: "▣",
     roles: ["lab_admin", "professor", "student"],
     permission: "project:read",
@@ -44,7 +44,7 @@ export const navItems: NavItem[] = [
   },
   {
     id: "files",
-    label: "文件资料",
+    label: "资料与知识库",
     icon: "☰",
     roles: ["lab_admin", "professor", "student"],
     permission: "file:read",
@@ -52,7 +52,7 @@ export const navItems: NavItem[] = [
   },
   {
     id: "meetings",
-    label: "会议通知",
+    label: "会议与通知",
     icon: "◌",
     roles: ["lab_admin", "professor", "student"],
     permission: "meeting:read",
@@ -68,7 +68,7 @@ export const navItems: NavItem[] = [
   },
   {
     id: "accounts",
-    label: "账户管理",
+    label: "管理中心",
     icon: "◎",
     roles: ["lab_admin", "professor", "student"],
     children: ["个人资料", "密码与安全"]
