@@ -1,0 +1,46 @@
+{
+  "realm": "lab",
+  "enabled": true,
+  "displayName": "实验室管理平台",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername(undefined)",
+  "roles": {
+    "realm": [
+      { "name": "lab_admin", "description": "实验室管理员" },
+      { "name": "professor", "description": "教师" },
+      { "name": "student", "description": "学生成员" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "lab-web",
+      "name": "实验室管理平台 Web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    },
+    {
+      "clientId": "lab-api",
+      "name": "实验室管理平台 API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    }
+  ],
+  "scopeMappings": [],
+  "defaultDefaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email"],
+  "defaultOptionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
+}

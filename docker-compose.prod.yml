@@ -60,7 +60,7 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.2
-    command: start --optimized
+    command: start --optimized --import-realm
     env_file:
       - path: .env.production
         required: false
@@ -75,6 +75,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
     restart: unless-stopped
 
 volumes:
