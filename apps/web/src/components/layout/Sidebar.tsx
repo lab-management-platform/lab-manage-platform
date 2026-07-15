@@ -24,52 +24,75 @@ export function Sidebar({
   );
 
   return (
-    <aside className={`sidebar-shell ${mobileNavOpen ? "open" : ""}`}>
-      <div className="brand-panel">
-        <button className="mobile-nav-button" type="button" onClick={onToggleMobileNav}>
-          <span aria-hidden="true">≡</span>
-        </button>
-        <div className="brand-mark">
-          <span aria-hidden="true">◈</span>
+    <>
+      <button
+        className="mobile-nav-trigger"
+        type="button"
+        onClick={onToggleMobileNav}
+        aria-label="打开导航"
+      >
+        ≡
+      </button>
+      <aside className={`sidebar-shell ${mobileNavOpen ? "open" : ""}`}>
+        <div className="brand-panel">
+          <button className="mobile-nav-button" type="button" onClick={onToggleMobileNav}>
+            <span aria-hidden="true">≡</span>
+          </button>
+          <div className="brand-mark">
+            <span aria-hidden="true">◈</span>
+          </div>
+          <div className="brand-copy">
+            <strong>实验室管理平台</strong>
+            <span>LAB MANAGEMENT SYSTEM</span>
+          </div>
         </div>
-        <div className="brand-copy">
-          <strong>实验室管理平台</strong>
-          <span>LAB MANAGEMENT SYSTEM</span>
+
+        <div className="sidebar-section-label">工作区</div>
+        <nav className="nav-list">
+          {allowedItems.map((item) => {
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={item.id === activeView ? "nav-item active" : "nav-item"}
+                onClick={() => onNavigate(item.id)}
+              >
+                <span className="nav-icon" aria-hidden="true">
+                  {item.icon}
+                </span>
+                <span>{item.label}</span>
+                <span className="nav-chevron" aria-hidden="true">
+                  {item.children ? "›" : ""}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="sidebar-shortcuts">
+          <span className="sidebar-section-label">快捷键</span>
+          <div>
+            <kbd>⌘ K</kbd>
+            <span>快速查找</span>
+          </div>
+          <div>
+            <kbd>⌘ J</kbd>
+            <span>切换项目</span>
+          </div>
         </div>
-      </div>
 
-      <nav className="nav-list">
-        {allowedItems.map((item) => {
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={item.id === activeView ? "nav-item active" : "nav-item"}
-              onClick={() => onNavigate(item.id)}
-            >
-              <span className="nav-icon" aria-hidden="true">
-                {item.icon}
-              </span>
-              <span>{item.label}</span>
-              <span className="nav-chevron" aria-hidden="true">
-                {item.children ? "›" : ""}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+        <div className="sidebar-route-hint">
+          <span>当前工作域</span>
+          <strong>{allowedItems.find((item) => item.id === activeView)?.label}</strong>
+          <small>进入模块后使用列表、详情和子资源完成操作。</small>
+        </div>
 
-      <div className="sidebar-route-hint">
-        <span>当前工作域</span>
-        <strong>{allowedItems.find((item) => item.id === activeView)?.label}</strong>
-        <small>进入模块后使用列表、详情和子资源完成操作。</small>
-      </div>
-
-      <div className="sidebar-footer">
-        <span className="sidebar-foot-label">当前身份</span>
-        <strong>{actor.username}</strong>
-        <small>{actor.role === "professor" ? "教授 / 项目负责人" : roleText(actor.role)}</small>
-      </div>
-    </aside>
+        <div className="sidebar-footer">
+          <span className="sidebar-foot-label">当前身份</span>
+          <strong>{actor.username}</strong>
+          <small>{actor.role === "professor" ? "教授 / 项目负责人" : roleText(actor.role)}</small>
+        </div>
+      </aside>
+    </>
   );
 }

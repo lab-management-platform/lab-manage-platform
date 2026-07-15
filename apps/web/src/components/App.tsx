@@ -255,6 +255,7 @@ export function App() {
             <InventoryPage
               actor={actor}
               summary={lab.summary}
+              categories={lab.inventoryCategories}
               materials={lab.materials}
               applications={lab.applications}
               stockMovements={lab.stockMovements}
