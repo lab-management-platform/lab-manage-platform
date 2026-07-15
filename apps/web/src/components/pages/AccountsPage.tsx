@@ -44,7 +44,6 @@ export function AccountsPage({
     role: "student" as Role
   });
   const [search, setSearch] = useState("");
-  const [showRegister, setShowRegister] = useState(false);
   const deferredSearch = useDeferredValue(search);
 
   const visibleUsers = useMemo(() => {
@@ -138,113 +137,92 @@ export function AccountsPage({
 
       {actor.permissions.includes("user:write") ? (
         <div className="split-layout">
-          <SectionCard
-            title="成员管理"
-            eyebrow="Role Matrix"
-            extra={
-              <button
-                type="button"
-                className="command-secondary"
-                onClick={() => setShowRegister((current) => !current)}
-              >
-                {showRegister ? "收起新增" : "+ 新增成员"}
-              </button>
-            }
-          >
-            {showRegister ? (
-              <form
-                className="form-grid compact"
-                onSubmit={async (event) => {
-                  event.preventDefault();
-                  await onRegisterUser(registerDraft);
-                  setRegisterDraft({
-                    username: "",
-                    password: "",
-                    identityType: "student_no",
-                    identityNo: "",
-                    displayName: "",
-                    role: "student"
-                  });
-                }}
-              >
-                <label>
-                  登录名
-                  <input
-                    value={registerDraft.username}
-                    onChange={(event) =>
-                      setRegisterDraft((current) => ({ ...current, username: event.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  身份类型
-                  <select
-                    value={registerDraft.identityType}
-                    onChange={(event) =>
-                      setRegisterDraft((current) => ({
-                        ...current,
-                        identityType: event.target.value as IdentityType
-                      }))
-                    }
-                  >
-                    <option value="student_no">学号</option>
-                    <option value="employee_no">工号</option>
-                  </select>
-                </label>
-                <label>
-                  学号/工号
-                  <input
-                    value={registerDraft.identityNo}
-                    onChange={(event) =>
-                      setRegisterDraft((current) => ({
-                        ...current,
-                        identityNo: event.target.value
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  显示名称
-                  <input
-                    value={registerDraft.displayName}
-                    onChange={(event) =>
-                      setRegisterDraft((current) => ({
-                        ...current,
-                        displayName: event.target.value
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  角色
-                  <select
-                    value={registerDraft.role}
-                    onChange={(event) =>
-                      setRegisterDraft((current) => ({
-                        ...current,
-                        role: event.target.value as Role,
-                        identityType:
-                          event.target.value === "student" ? "student_no" : "employee_no"
-                      }))
-                    }
-                  >
-                    <option value="student">学生</option>
-                    <option value="professor">教授</option>
-                    <option value="lab_admin">实验室管理员</option>
-                  </select>
-                </label>
-                <label>
-                  初始密码
-                  <input
-                    value={registerDraft.password}
-                    onChange={(event) =>
-                      setRegisterDraft((current) => ({ ...current, password: event.target.value }))
-                    }
-                  />
-                </label>
-                <button className="primary-button">创建账号</button>
-              </form>
-            ) : null}
+          <SectionCard title="新增成员" eyebrow="User Provisioning">
+            <form
+              className="form-grid compact"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                await onRegisterUser(registerDraft);
+                setRegisterDraft({
+                  username: "",
+                  password: "",
+                  identityType: "student_no",
+                  identityNo: "",
+                  displayName: "",
+                  role: "student"
+                });
+              }}
+            >
+              <label>
+                登录名
+                <input
+                  value={registerDraft.username}
+                  onChange={(event) =>
+                    setRegisterDraft((current) => ({ ...current, username: event.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                身份类型
+                <select
+                  value={registerDraft.identityType}
+                  onChange={(event) =>
+                    setRegisterDraft((current) => ({
+                      ...current,
+                      identityType: event.target.value as IdentityType
+                    }))
+                  }
+                >
+                  <option value="student_no">学号</option>
+                  <option value="employee_no">工号</option>
+                </select>
+              </label>
+              <label>
+                学号/工号
+                <input
+                  value={registerDraft.identityNo}
+                  onChange={(event) =>
+                    setRegisterDraft((current) => ({ ...current, identityNo: event.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                显示名称
+                <input
+                  value={registerDraft.displayName}
+                  onChange={(event) =>
+                    setRegisterDraft((current) => ({ ...current, displayName: event.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                角色
+                <select
+                  value={registerDraft.role}
+                  onChange={(event) =>
+                    setRegisterDraft((current) => ({
+                      ...current,
+                      role: event.target.value as Role,
+                      identityType: event.target.value === "student" ? "student_no" : "employee_no"
+                    }))
+                  }
+                >
+                  <option value="student">学生</option>
+                  <option value="professor">教授</option>
+                  <option value="lab_admin">实验室管理员</option>
+                </select>
+              </label>
+              <label>
+                初始密码
+                <input
+                  value={registerDraft.password}
+                  onChange={(event) =>
+                    setRegisterDraft((current) => ({ ...current, password: event.target.value }))
+                  }
+                />
+              </label>
+              <button className="primary-button">创建账号</button>
+            </form>
           </SectionCard>
 
           <SectionCard title="成员列表" eyebrow="Role Matrix">

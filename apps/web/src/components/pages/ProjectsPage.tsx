@@ -233,7 +233,6 @@ export function ProjectsPage({
   const [treeFlipped, setTreeFlipped] = useState(false);
   const [treeWorkspaceOpen, setTreeWorkspaceOpen] = useState(false);
   const [noteWorkspaceOpen, setNoteWorkspaceOpen] = useState(false);
-  const [showCreateProject, setShowCreateProject] = useState(false);
   const [yearFilter, setYearFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
@@ -353,13 +352,10 @@ export function ProjectsPage({
           eyebrow="Project Registry"
           extra={
             actor.permissions.includes("project:write") ? (
-              <button
-                type="button"
-                className="command-secondary"
-                onClick={() => setShowCreateProject((current) => !current)}
-              >
-                {showCreateProject ? "收起创建" : "+ 新建项目"}
-              </button>
+              <span className="panel-tag">
+                <span aria-hidden="true">+</span>
+                可新建项目
+              </span>
             ) : null
           }
         >
@@ -440,7 +436,7 @@ export function ProjectsPage({
           )}
         </SectionCard>
 
-        {actor.permissions.includes("project:write") && showCreateProject ? (
+        {actor.permissions.includes("project:write") ? (
           <SectionCard title="创建项目" eyebrow="New Project">
             <form
               className="form-grid"
