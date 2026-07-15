@@ -807,6 +807,43 @@ kbd {
   }
 }
 
+/* secondary screens are actual focused workspaces, not more first-level content */
+.split-layout {
+  align-items: start !important;
+}
+.tree-workspace-shell {
+  position: fixed !important;
+  inset: 58px 0 0 252px !important;
+  z-index: 55 !important;
+  overflow: auto;
+  padding: 18px 24px 44px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--cmd-bg) !important;
+  box-shadow: none !important;
+}
+.tree-workspace-shell > * {
+  width: min(1360px, 100%);
+  margin-right: auto;
+  margin-left: auto;
+}
+.ai-thread {
+  min-height: 0;
+  height: auto;
+}
+.empty-chat {
+  min-height: 180px;
+  padding: 26px;
+}
+.ai-chat-card {
+  min-height: 0;
+}
+@media (max-width: 900px) {
+  .tree-workspace-shell {
+    inset: 105px 0 0;
+  }
+}
+
 /* v1 command center: a new compact information architecture */
 :root {
   --cmd-bg: #eef1f4;
