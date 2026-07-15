@@ -78,7 +78,7 @@ export function useLabData(token: string, actor: Actor | null) {
   const [aiSources, setAiSources] = useState<KnowledgeSource[]>([]);
   const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeDocument[]>([]);
   const [faqTemplates, setFaqTemplates] = useState<FaqTemplate[]>([]);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState("欢迎进入实验室管理平台。");
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");

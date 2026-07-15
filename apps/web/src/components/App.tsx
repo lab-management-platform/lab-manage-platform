@@ -109,6 +109,7 @@ export function App() {
       setActor(payload.actor);
       sessionStorage.setItem("lab_token", payload.token);
       sessionStorage.setItem("lab_actor", JSON.stringify(payload.actor));
+      lab.setMessage(`欢迎回来，${payload.actor.displayName}`);
     } catch (error) {
       lab.setMessage(error instanceof Error ? error.message : "登录失败");
     } finally {
