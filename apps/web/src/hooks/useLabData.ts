@@ -124,8 +124,7 @@ export function useLabData(token: string, actor: Actor | null) {
         .then(setMeetings),
       fetch(`${apiBase}/meetings/attendance`, { headers })
         .then(parseResponse<MeetingAttendance[]>)
-        .then(setMeetingAttendance)
-        .catch(() => setMeetingAttendance([])),
+        .then(setMeetingAttendance),
       fetch(`${apiBase}/notifications`, { headers })
         .then(parseResponse<NotificationItem[]>)
         .then(setNotifications),

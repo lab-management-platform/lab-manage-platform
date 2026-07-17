@@ -79,15 +79,6 @@ export function Topbar({
       </div>
 
       <div className="topbar-actions">
-        <button type="button" className="global-search" onClick={() => onOpenView("projects")}>
-          <span aria-hidden="true">⌕</span>
-          <span>搜索项目、成员或物资</span>
-          <kbd>⌘ K</kbd>
-        </button>
-        <button type="button" className="quick-action" onClick={() => onOpenView("inventory")}>
-          <span aria-hidden="true">＋</span>
-          快捷提交
-        </button>
         <div className="topbar-meta">
           <small>{now}</small>
           <button type="button" className="icon-chip" onClick={() => onOpenView("meetings")}>
