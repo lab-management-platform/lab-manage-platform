@@ -27,7 +27,16 @@ describe("api integration", () => {
   it("exposes health and authenticated profile endpoints", async () => {
     const health = await app.inject({ method: "GET", url: "/health" });
     expect(health.statusCode).toBe(200);
-    expect(health.json<{ plugins: string[] }>().plugins).toContain("inventory");
+    expect(
+      health.json<{
+        plugins: string[];
+        externalServices: { synologyNas: { accessScope: string } };
+      }>().plugins
+    ).toContain("inventory");
+    expect(
+      health.json<{ externalServices: { synologyNas: { accessScope: string } } }>().externalServices
+        .synologyNas.accessScope
+    ).toBe("campus_network_or_vpn");
 
     const profile = await app.inject({
       method: "GET",
@@ -36,6 +45,69 @@ describe("api integration", () => {
     });
     expect(profile.statusCode).toBe(200);
     expect(profile.json<{ username: string }>().username).toBe("admin");
+  });
+
+  it("returns an aggregated dashboard snapshot", async () => {
+    const dashboard = await app.inject({
+      method: "GET",
+      url: "/api/v1/dashboard",
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(dashboard.statusCode).toBe(200);
+    expect(
+      dashboard.json<{
+        projectCount: number;
+        activeProjectCount: number;
+        memberCount: number;
+        annualProjects: Record<string, number>;
+      }>()
+    ).toEqual(
+      expect.objectContaining({
+        projectCount: expect.any(Number),
+        activeProjectCount: expect.any(Number),
+        memberCount: expect.any(Number),
+        annualProjects: expect.any(Object)
+      })
+    );
+  });
+
+  it("returns物资类别及归还规则", async () => {
+    const categories = await app.inject({
+      method: "GET",
+      url: "/api/v1/inventory/categories",
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(categories.statusCode).toBe(200);
+    expect(categories.json<Array<{ name: string; returnRequired: boolean }>>()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "耗材", returnRequired: false }),
+        expect.objectContaining({ name: "器材", returnRequired: true })
+      ])
+    );
+  });
+
+  it("allows inventory administrators to create a category rule", async () => {
+    const suffix = Date.now();
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/v1/inventory/categories",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        code: `reagent-${suffix}`,
+        name: `试剂${suffix}`,
+        returnRequired: false,
+        quantityMode: "quantity",
+        serialRequired: false,
+        dynamicSchema: { brand: "品牌", storage: "保存条件" }
+      }
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json<{ name: string; dynamicSchema: Record<string, string> }>()).toEqual(
+      expect.objectContaining({
+        name: `试剂${suffix}`,
+        dynamicSchema: { brand: "品牌", storage: "保存条件" }
+      })
+    );
   });
 
   it("creates a user, updates role, and removes the user through HTTP contracts", async () => {
@@ -193,6 +265,24 @@ describe("api integration", () => {
     expect(created.statusCode).toBe(201);
     const meeting = created.json<{ id: string; title: string }>();
     expect(meeting.title).toBe(`接口会议${suffix}`);
+
+    const attendance = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/meetings/${meeting.id}/attendance`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { status: "accepted" }
+    });
+    expect(attendance.statusCode).toBe(200);
+    expect(attendance.json<{ status: string }>().status).toBe("accepted");
+
+    const minutes = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/meetings/${meeting.id}/minutes`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { summary: "已完成接口评审，下一步补充会议纪要。", status: "completed" }
+    });
+    expect(minutes.statusCode).toBe(200);
+    expect(minutes.json<{ status: string }>().status).toBe("completed");
 
     const meetings = await app.inject({
       method: "GET",

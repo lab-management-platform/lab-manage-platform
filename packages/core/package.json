@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "jose": "^6.2.3",
     "pg": "^8.20.0"
   },
   "devDependencies": {

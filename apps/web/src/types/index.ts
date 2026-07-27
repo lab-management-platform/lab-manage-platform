@@ -40,6 +40,22 @@ export interface Material {
   unit: string;
   location: string;
   manager: string;
+  categoryId?: string;
+  categoryName?: string;
+  returnRequired?: boolean;
+  serialRequired?: boolean;
+  dynamicAttributes?: Record<string, string | number | boolean | null>;
+}
+
+export interface InventoryCategory {
+  id: string;
+  code: string;
+  name: string;
+  returnRequired: boolean;
+  quantityMode: "quantity" | "serialized";
+  serialRequired: boolean;
+  dynamicSchema: Record<string, unknown>;
+  active: boolean;
 }
 
 export interface InventoryApplication {
@@ -63,9 +79,25 @@ export interface StockMovement {
   materialName: string;
   operatorId: string;
   quantity: number;
-  type: "stock_in" | "application_out";
+  type: "stock_in" | "application_out" | "return";
   remark: string;
   createdAt: string;
+}
+
+export type LoanStatus = "borrowed" | "returned" | "overdue";
+
+export interface InventoryLoan {
+  id: string;
+  applicationId: string;
+  materialId: string;
+  materialName: string;
+  borrowerId: string;
+  borrowerName: string;
+  quantity: number;
+  dueAt: string;
+  status: LoanStatus;
+  borrowedAt: string;
+  returnedAt?: string;
 }
 
 export interface Summary {
@@ -73,6 +105,16 @@ export interface Summary {
   lowStockCount: number;
   pendingApplications: number;
   approvedApplications: number;
+}
+
+export interface DashboardSnapshot {
+  memberCount: number;
+  projectCount: number;
+  activeProjectCount: number;
+  meetingCount: number;
+  notificationCount: number;
+  annualProjects: Record<string, number>;
+  inventory: Summary;
 }
 
 export interface ManagedUser {
@@ -168,6 +210,16 @@ export interface Meeting {
   updatedAt: string;
 }
 
+export type MeetingAttendanceStatus = "pending" | "accepted" | "leave" | "declined";
+
+export interface MeetingAttendance {
+  meetingId: string;
+  actorId: string;
+  status: MeetingAttendanceStatus;
+  reason?: string;
+  updatedAt: string;
+}
+
 export interface NotificationItem {
   id: string;
   recipientId?: string;
@@ -238,6 +290,8 @@ export interface Project {
   advisorIdentityNo?: string;
   startsAt?: string;
   endsAt?: string;
+  documentUrl?: string;
+  repositoryUrl?: string;
   status: ProjectStatus;
   reportCycleDays: number;
   lastReportAt?: string;

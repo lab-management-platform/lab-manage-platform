@@ -31,6 +31,9 @@ services:
       target: web-prod
       args:
         VITE_API_BASE_URL: /api
+        VITE_AUTH_MODE: ${VITE_AUTH_MODE:-oidc}
+        VITE_KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:?KEYCLOAK_ISSUER is required}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-lab-web}
     env_file:
       - path: .env.production
         required: false
@@ -53,6 +56,27 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    command: start --optimized --import-realm
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-lab_management}
+      KC_DB_USERNAME: ${POSTGRES_USER:-lab}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:?KEYCLOAK_HOSTNAME is required}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:?KEYCLOAK_ADMIN_USERNAME is required}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
     restart: unless-stopped
 
 volumes:

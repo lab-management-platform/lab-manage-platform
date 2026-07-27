@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import pg from "pg";
 import type {
   Actor,
@@ -9,6 +9,7 @@ import type {
   Permission,
   Role
 } from "./contracts.js";
+import { KeycloakAuthAdapter } from "./keycloak-auth.js";
 
 const rolePermissions: Record<Role, Permission[]> = {
   lab_admin: [
@@ -101,8 +102,14 @@ interface DemoUser {
   phone?: string;
   displayName: string;
   role: Role;
-  password: string;
+  passwordHash: string;
 }
+
+const DEMO_PASSWORDS = {
+  admin: process.env.LAB_DEMO_ADMIN_PASSWORD ?? "Admin@123456",
+  professor: process.env.LAB_DEMO_PROFESSOR_PASSWORD ?? "Professor@123456",
+  student: process.env.LAB_DEMO_STUDENT_PASSWORD ?? "Student@123456"
+};
 
 const demoUsers: DemoUser[] = [
   {
@@ -112,7 +119,7 @@ const demoUsers: DemoUser[] = [
     identityNo: "EMP-ADMIN-001",
     displayName: "实验室管理员",
     role: "lab_admin" as const,
-    password: "Admin@123456"
+    passwordHash: ""
   },
   {
     id: "u-prof001",
@@ -121,7 +128,7 @@ const demoUsers: DemoUser[] = [
     identityNo: "EMP-PROF-001",
     displayName: "张教授",
     role: "professor" as const,
-    password: "Professor@123456"
+    passwordHash: ""
   },
   {
     id: "u-student001",
@@ -130,9 +137,13 @@ const demoUsers: DemoUser[] = [
     identityNo: "STU-001",
     displayName: "学生一号",
     role: "student" as const,
-    password: "Student@123456"
+    passwordHash: ""
   }
 ];
+
+demoUsers[0].passwordHash = hashPassword(DEMO_PASSWORDS.admin);
+demoUsers[1].passwordHash = hashPassword(DEMO_PASSWORDS.professor);
+demoUsers[2].passwordHash = hashPassword(DEMO_PASSWORDS.student);
 
 const identityNoPattern = /^[A-Za-z0-9_-]{4,32}$/;
 const phonePattern = /^1[3-9]\d{9}$/;
@@ -158,7 +169,28 @@ function toActor(user: {
 }
 
 function hashPassword(password: string): string {
-  return createHash("sha256").update(password).digest("hex");
+  const salt = randomBytes(16);
+  const derivedKey = scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 });
+  return `scrypt$16384$8$1$${salt.toString("base64url")}$${derivedKey.toString("base64url")}`;
+}
+
+function verifyPassword(password: string, encoded: string): boolean {
+  const [algorithm, n, r, p, saltEncoded, hashEncoded] = encoded.split("$");
+  if (algorithm !== "scrypt" || !n || !r || !p || !saltEncoded || !hashEncoded) {
+    return false;
+  }
+  try {
+    const salt = Buffer.from(saltEncoded, "base64url");
+    const expected = Buffer.from(hashEncoded, "base64url");
+    const actual = scryptSync(password, salt, expected.length, {
+      N: Number(n),
+      r: Number(r),
+      p: Number(p)
+    });
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
 }
 
 function validateLocalRegistration(request: LocalUserRegistrationRequest): void {
@@ -213,7 +245,7 @@ export class DemoAuthAdapter implements AuthPort {
   async login(username: string, password: string): Promise<{ token: string; actor: Actor } | null> {
     const user = this.users.find(
       (item) =>
-        item.password === password &&
+        verifyPassword(password, item.passwordHash) &&
         [item.username, item.identityNo, item.phone].some((value) => value === username)
     );
     if (!user) {
@@ -242,7 +274,7 @@ export class DemoAuthAdapter implements AuthPort {
       identityNo: request.identityNo,
       displayName: request.displayName,
       role: request.role,
-      password: request.password
+      passwordHash: hashPassword(request.password)
     };
     this.users.push(user);
     return toActor(user);
@@ -276,10 +308,10 @@ export class DemoAuthAdapter implements AuthPort {
       throw new Error("newPassword must be at least 8 characters");
     }
     const user = this.users.find((item) => item.id === actorId);
-    if (!user || user.password !== currentPassword) {
+    if (!user || !verifyPassword(currentPassword, user.passwordHash)) {
       throw new Error("current password is incorrect");
     }
-    user.password = newPassword;
+    user.passwordHash = hashPassword(newPassword);
   }
 
   async updateContact(actorId: string, phone: string): Promise<ManagedUser> {
@@ -306,7 +338,7 @@ export class DemoAuthAdapter implements AuthPort {
     if (user.role === "super_admin") {
       throw new Error("super admin password cannot be reset here");
     }
-    user.password = newPassword;
+    user.passwordHash = hashPassword(newPassword);
   }
 
   async deactivateUser(targetUserId: string): Promise<void> {
@@ -461,7 +493,7 @@ export class PostgresAuthAdapter implements AuthPort {
           user.identityType === "student_no" ? user.identityNo : null,
           user.identityType,
           user.identityNo,
-          hashPassword(user.password),
+          user.passwordHash,
           user.displayName,
           user.role
         ]
@@ -484,7 +516,7 @@ export class PostgresAuthAdapter implements AuthPort {
       [username]
     );
     const user = userResult.rows[0];
-    if (!user || user.password_hash !== hashPassword(password)) {
+    if (!user || !verifyPassword(password, user.password_hash)) {
       return null;
     }
 
@@ -653,7 +685,7 @@ export class PostgresAuthAdapter implements AuthPort {
     if (user.identity_provider !== "local") {
       throw new Error("password is managed by identity provider");
     }
-    if (user.password_hash !== hashPassword(currentPassword)) {
+    if (!verifyPassword(currentPassword, user.password_hash)) {
       throw new Error("current password is incorrect");
     }
 
@@ -781,6 +813,17 @@ export class PostgresAuthAdapter implements AuthPort {
 }
 
 export function createAuthAdapter(databaseUrl?: string): AuthPort {
+  if (process.env.AUTH_MODE === "oidc") {
+    const issuer = process.env.KEYCLOAK_ISSUER;
+    const clientId = process.env.KEYCLOAK_CLIENT_ID;
+    if (!issuer || !clientId) {
+      throw new Error("AUTH_MODE=oidc requires KEYCLOAK_ISSUER and KEYCLOAK_CLIENT_ID");
+    }
+    return new KeycloakAuthAdapter(issuer, clientId, process.env.KEYCLOAK_AUDIENCE);
+  }
+  if (process.env.NODE_ENV === "production" && process.env.AUTH_MODE !== "local") {
+    throw new Error("Production authentication must explicitly configure AUTH_MODE=oidc");
+  }
   if (!databaseUrl) {
     return new DemoAuthAdapter();
   }

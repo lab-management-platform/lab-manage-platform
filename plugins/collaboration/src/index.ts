@@ -4,6 +4,7 @@ import pg from "pg";
 
 type MeetingStatus = "scheduled" | "completed" | "cancelled";
 type NotificationType = "announcement" | "meeting" | "approval" | "task" | "system";
+type AttendanceStatus = "pending" | "accepted" | "leave" | "declined";
 
 interface Meeting {
   id: string;
@@ -43,6 +44,14 @@ interface NotificationReadReceipt {
   readAt: string;
 }
 
+interface MeetingAttendance {
+  meetingId: string;
+  actorId: string;
+  status: AttendanceStatus;
+  reason?: string;
+  updatedAt: string;
+}
+
 interface MeetingCreateRequest {
   projectId?: string;
   title: string;
@@ -59,6 +68,11 @@ interface MeetingMinutesRequest {
   minutesFileId?: string;
   summary?: string;
   status?: MeetingStatus;
+}
+
+interface MeetingAttendanceRequest {
+  status: AttendanceStatus;
+  reason?: string;
 }
 
 interface AnnouncementRequest {
@@ -82,6 +96,12 @@ interface CollaborationRepository {
     input: Omit<Notification, "id" | "createdAt" | "readAt">[]
   ): Promise<Notification[]>;
   markNotificationRead(notificationId: string, actor: Actor): Promise<Notification | null>;
+  listAttendance(actor: Actor): Promise<MeetingAttendance[]>;
+  updateAttendance(
+    meetingId: string,
+    actor: Actor,
+    input: MeetingAttendanceRequest
+  ): Promise<MeetingAttendance | { error: string; status: number }>;
 }
 
 const seedMeetings: Meeting[] = [
@@ -118,6 +138,7 @@ class MemoryCollaborationRepository implements CollaborationRepository {
   private readonly meetings = structuredClone(seedMeetings);
   private readonly notifications = structuredClone(seedNotifications);
   private readonly readReceipts: NotificationReadReceipt[] = [];
+  private readonly attendance: MeetingAttendance[] = [];
 
   async initialize(): Promise<void> {
     return Promise.resolve();
@@ -138,7 +159,55 @@ class MemoryCollaborationRepository implements CollaborationRepository {
     const now = new Date().toISOString();
     const meeting = { ...input, id: randomUUID(), createdAt: now, updatedAt: now };
     this.meetings.unshift(meeting);
+    this.attendance.push(
+      ...meeting.participantIds.map((actorId) => ({
+        meetingId: meeting.id,
+        actorId,
+        status: "pending" as const,
+        updatedAt: now
+      }))
+    );
     return meeting;
+  }
+
+  async listAttendance(actor: Actor): Promise<MeetingAttendance[]> {
+    return this.attendance.filter(
+      (item) => item.actorId === actor.id || actor.permissions.includes("meeting:write")
+    );
+  }
+
+  async updateAttendance(
+    meetingId: string,
+    actor: Actor,
+    input: MeetingAttendanceRequest
+  ): Promise<MeetingAttendance | { error: string; status: number }> {
+    const meeting = this.meetings.find((item) => item.id === meetingId);
+    if (!meeting) return { status: 404, error: "meeting not found" };
+    if (
+      !meeting.participantIds.includes(actor.id) &&
+      !actor.permissions.includes("meeting:write")
+    ) {
+      return { status: 403, error: "not a meeting participant" };
+    }
+    const now = new Date().toISOString();
+    const existing = this.attendance.find(
+      (item) => item.meetingId === meetingId && item.actorId === actor.id
+    );
+    if (existing) {
+      existing.status = input.status;
+      existing.reason = input.reason?.trim() || undefined;
+      existing.updatedAt = now;
+      return existing;
+    }
+    const created = {
+      meetingId,
+      actorId: actor.id,
+      status: input.status,
+      reason: input.reason?.trim() || undefined,
+      updatedAt: now
+    };
+    this.attendance.push(created);
+    return created;
   }
 
   async listProjectRecipientIds(_: string): Promise<string[]> {
@@ -243,6 +312,17 @@ class PostgresCollaborationRepository implements CollaborationRepository {
       );
       ALTER TABLE collaboration.meeting ADD COLUMN IF NOT EXISTS project_id TEXT;
 
+      CREATE TABLE IF NOT EXISTS collaboration.meeting_attendance (
+        meeting_id TEXT NOT NULL REFERENCES collaboration.meeting(id) ON DELETE CASCADE,
+        actor_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'leave', 'declined')),
+        reason TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (meeting_id, actor_id)
+      );
+      CREATE INDEX IF NOT EXISTS meeting_attendance_actor_idx
+        ON collaboration.meeting_attendance(actor_id, updated_at DESC);
+
       CREATE TABLE IF NOT EXISTS collaboration.notification (
         id TEXT PRIMARY KEY,
         recipient_id TEXT,
@@ -342,7 +422,54 @@ class PostgresCollaborationRepository implements CollaborationRepository {
         input.createdByName
       ]
     );
-    return mapMeetingRow(result.rows[0]);
+    const meeting = mapMeetingRow(result.rows[0]);
+    for (const actorId of meeting.participantIds) {
+      await this.pool.query(
+        `INSERT INTO collaboration.meeting_attendance (meeting_id, actor_id, status)
+         VALUES ($1, $2, 'pending') ON CONFLICT DO NOTHING`,
+        [meeting.id, actorId]
+      );
+    }
+    return meeting;
+  }
+
+  async listAttendance(actor: Actor): Promise<MeetingAttendance[]> {
+    const result = await this.pool.query(
+      `SELECT meeting_id, actor_id, status, reason, updated_at
+       FROM collaboration.meeting_attendance
+       WHERE actor_id = $1 OR $2 = true
+       ORDER BY updated_at DESC`,
+      [actor.id, actor.permissions.includes("meeting:write")]
+    );
+    return result.rows.map(mapAttendanceRow);
+  }
+
+  async updateAttendance(
+    meetingId: string,
+    actor: Actor,
+    input: MeetingAttendanceRequest
+  ): Promise<MeetingAttendance | { error: string; status: number }> {
+    const participant = await this.pool.query<{ participant_ids: string[]; created_by: string }>(
+      "SELECT participant_ids, created_by FROM collaboration.meeting WHERE id = $1",
+      [meetingId]
+    );
+    const meeting = participant.rows[0];
+    if (!meeting) return { status: 404, error: "meeting not found" };
+    if (
+      !meeting.participant_ids.includes(actor.id) &&
+      !actor.permissions.includes("meeting:write")
+    ) {
+      return { status: 403, error: "not a meeting participant" };
+    }
+    const result = await this.pool.query(
+      `INSERT INTO collaboration.meeting_attendance (meeting_id, actor_id, status, reason, updated_at)
+       VALUES ($1, $2, $3, $4, now())
+       ON CONFLICT (meeting_id, actor_id) DO UPDATE SET
+         status = EXCLUDED.status, reason = EXCLUDED.reason, updated_at = now()
+       RETURNING meeting_id, actor_id, status, reason, updated_at`,
+      [meetingId, actor.id, input.status, input.reason?.trim() || null]
+    );
+    return mapAttendanceRow(result.rows[0]);
   }
 
   async listProjectRecipientIds(projectId: string): Promise<string[]> {
@@ -482,6 +609,16 @@ class PostgresCollaborationRepository implements CollaborationRepository {
   }
 }
 
+function mapAttendanceRow(row: Record<string, unknown>): MeetingAttendance {
+  return {
+    meetingId: String(row.meeting_id),
+    actorId: String(row.actor_id),
+    status: row.status as AttendanceStatus,
+    reason: row.reason ? String(row.reason) : undefined,
+    updatedAt: new Date(String(row.updated_at)).toISOString()
+  };
+}
+
 function mapMeetingRow(row: Record<string, unknown>): Meeting {
   return {
     id: String(row.id),
@@ -573,6 +710,18 @@ export const collaborationPlugin: PluginManifest = {
       path: "/meetings/:id/minutes",
       permission: "meeting:write",
       summary: "上传会议纪要引用"
+    },
+    {
+      method: "GET",
+      path: "/meetings/attendance",
+      permission: "meeting:read",
+      summary: "查询会议参会反馈"
+    },
+    {
+      method: "PATCH",
+      path: "/meetings/:id/attendance",
+      permission: "meeting:read",
+      summary: "提交参会或请假反馈"
     },
     { method: "GET", path: "/notifications", permission: "meeting:read", summary: "查询通知" },
     {
@@ -733,6 +882,48 @@ export const collaborationPlugin: PluginManifest = {
                 body: { error: error instanceof Error ? error.message : "meeting update failed" }
               };
             }
+          }
+        },
+        {
+          method: "GET",
+          path: "/meetings/attendance",
+          permission: "meeting:read",
+          summary: "查询会议参会反馈",
+          handler: async ({ actor }) => {
+            if (!actor) return { status: 401, body: { error: "Unauthorized" } };
+            return { body: await repository.listAttendance(actor) };
+          }
+        },
+        {
+          method: "PATCH",
+          path: "/meetings/:id/attendance",
+          permission: "meeting:read",
+          summary: "提交参会或请假反馈",
+          handler: async ({ actor, params, body }) => {
+            if (!actor) return { status: 401, body: { error: "Unauthorized" } };
+            const request = body as Partial<MeetingAttendanceRequest>;
+            if (
+              !request.status ||
+              !["pending", "accepted", "leave", "declined"].includes(request.status)
+            ) {
+              return { status: 400, body: { error: "invalid attendance status" } };
+            }
+            const attendance = await repository.updateAttendance(params.id, actor, {
+              status: request.status,
+              reason: request.reason
+            });
+            if ("error" in attendance) {
+              return { status: attendance.status, body: { error: attendance.error } };
+            }
+            await context.audit.record({
+              actorId: actor.id,
+              action: "meeting.attendance.updated",
+              targetType: "meeting",
+              targetId: params.id,
+              occurredAt: new Date().toISOString(),
+              metadata: { status: attendance.status, reason: attendance.reason ?? "" }
+            });
+            return { body: attendance };
           }
         },
         {

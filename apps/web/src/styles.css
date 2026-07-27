@@ -261,6 +261,22 @@ h3,
   text-align: left;
 }
 
+.nav-item span:nth-child(2) {
+  flex: 1;
+}
+
+.nav-chevron {
+  color: rgba(247, 241, 231, 0.48);
+  font-size: 18px;
+  transition: transform 160ms ease;
+}
+
+.nav-item:hover .nav-chevron,
+.nav-item.active .nav-chevron {
+  color: var(--gold);
+  transform: translateX(2px);
+}
+
 .nav-item:hover,
 .nav-item.active {
   border-color: rgba(180, 138, 82, 0.24);
@@ -274,6 +290,27 @@ h3,
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
   overflow-wrap: anywhere;
+}
+
+.sidebar-route-hint {
+  display: grid;
+  gap: 5px;
+  margin-top: 16px;
+  padding: 14px;
+  border-left: 2px solid var(--gold);
+  color: rgba(247, 241, 231, 0.7);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.sidebar-route-hint span,
+.sidebar-route-hint small {
+  color: rgba(247, 241, 231, 0.52);
+  font-size: 11px;
+}
+
+.sidebar-route-hint strong {
+  color: #fff;
+  font-family: "Noto Serif SC", "Songti SC", serif;
 }
 
 .workspace-shell {
@@ -326,6 +363,24 @@ h3,
   flex: 1;
   align-items: stretch;
   flex-wrap: wrap;
+}
+
+.breadcrumb-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.breadcrumb-row b {
+  color: var(--gold);
+}
+
+.breadcrumb-row strong {
+  color: var(--text);
 }
 
 .topbar-actions {
@@ -613,6 +668,258 @@ h3,
 
 .hero-panel {
   padding: 28px;
+}
+
+.dashboard-command-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px;
+  border: 1px solid rgba(47, 111, 93, 0.2);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(47, 111, 93, 0.1), rgba(255, 253, 249, 0.9)),
+    radial-gradient(circle at right, rgba(180, 138, 82, 0.14), transparent 35%);
+}
+
+.dashboard-command-strip strong,
+.dashboard-command-strip span {
+  display: block;
+}
+
+.dashboard-command-strip strong {
+  margin-bottom: 4px;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+  font-size: 19px;
+}
+
+.dashboard-command-strip span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dashboard-command-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.dashboard-drill-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-drill-card {
+  display: grid;
+  gap: 8px;
+  min-height: 142px;
+  padding: 16px;
+  border: 1px solid rgba(180, 138, 82, 0.2);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--text);
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.dashboard-drill-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(47, 111, 93, 0.36);
+  box-shadow: 0 12px 26px rgba(12, 31, 28, 0.08);
+}
+
+.dashboard-drill-card span,
+.dashboard-drill-card small {
+  color: var(--muted);
+}
+
+.dashboard-drill-card strong {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 28px;
+}
+
+.dashboard-project-row {
+  width: 100%;
+  border: 1px solid transparent;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.dashboard-project-row:hover {
+  border-color: rgba(180, 138, 82, 0.22);
+  background: rgba(255, 250, 242, 0.72);
+}
+
+.project-filter-bar {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid rgba(180, 138, 82, 0.16);
+  border-radius: 16px;
+  background: rgba(247, 242, 233, 0.72);
+}
+
+.inventory-category-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid rgba(180, 138, 82, 0.16);
+  border-radius: 16px;
+  background: rgba(247, 242, 233, 0.72);
+}
+
+.inventory-category-toolbar label {
+  display: grid;
+  gap: 5px;
+  min-width: 180px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inventory-category-toolbar select {
+  padding: 9px 12px;
+  border-radius: 11px;
+}
+
+.inventory-category-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.inventory-category-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.inventory-category-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inventory-category-form .checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.inventory-category-form .checkbox-field input {
+  width: auto;
+}
+
+.nas-network-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid rgba(47, 111, 93, 0.24);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(47, 111, 93, 0.1), rgba(255, 253, 249, 0.92)),
+    radial-gradient(circle at right, rgba(180, 138, 82, 0.12), transparent 34%);
+}
+
+.nas-network-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  color: #fff;
+  background: var(--sage);
+  font-size: 24px;
+}
+
+.nas-network-banner strong,
+.nas-network-banner p {
+  display: block;
+}
+
+.nas-network-banner p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.nas-network-banner .panel-tag {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.meeting-minutes-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(180, 138, 82, 0.24);
+}
+
+.meeting-attendance-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(180, 138, 82, 0.24);
+}
+
+.meeting-minutes-form textarea {
+  min-height: 78px;
+}
+
+.project-filter-bar label {
+  display: grid;
+  gap: 5px;
+  min-width: 150px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.project-filter-bar select {
+  padding: 9px 12px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.filter-result-count {
+  margin-left: auto;
+  padding-bottom: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inline-link {
+  color: #205c48;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.inline-link:hover {
+  color: #9b713d;
+  text-decoration: underline;
 }
 
 .hero-panel h1 {
@@ -2135,6 +2442,7 @@ h3,
   }
 
   .hero-stats,
+  .dashboard-drill-grid,
   .project-selector-grid,
   .catalog-grid,
   .file-card-grid,
@@ -2229,6 +2537,15 @@ h3,
   }
 
   .notes-editor-meta {
+    justify-content: flex-start;
+  }
+
+  .dashboard-command-strip {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-command-actions {
     justify-content: flex-start;
   }
 

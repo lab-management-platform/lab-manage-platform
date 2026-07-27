@@ -129,6 +129,20 @@ export function FilesPage({
 
   return (
     <div className="page-grid">
+      <section className="nas-network-banner" role="status">
+        <div className="nas-network-icon" aria-hidden="true">
+          ⌁
+        </div>
+        <div>
+          <strong>资料实际存储：Synology NAS</strong>
+          <p>
+            NAS 仅在校园网或校园 VPN
+            中可访问。平台仍会保存资料元数据和版本记录；如果当前网络无法访问
+            NAS，请先连接校园网/VPN，不要重复上传或删除登记记录。
+          </p>
+        </div>
+        <span className="panel-tag">校园网 / 校园 VPN</span>
+      </section>
       <SectionCard title="资料中心" eyebrow="Knowledge Assets">
         <div className="toolbar-row">
           <input

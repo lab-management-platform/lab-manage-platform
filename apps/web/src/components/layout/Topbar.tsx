@@ -34,6 +34,11 @@ export function Topbar({
   return (
     <header className="topbar-shell">
       <div className="topbar-context">
+        <div className="breadcrumb-row">
+          <span>实验室管理平台</span>
+          <b>/</b>
+          <strong>{activeProject?.name ?? "全局工作台"}</strong>
+        </div>
         <div className="topbar-project-head">
           <span className="topbar-label">当前项目</span>
           <div className="select-wrap project-select-wrap">

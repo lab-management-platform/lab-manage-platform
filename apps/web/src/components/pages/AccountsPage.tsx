@@ -1,11 +1,6 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
-import {
-  defaultResetPassword,
-  identityTypeText,
-  phonePattern,
-  roleText
-} from "../../utils/helpers";
+import { identityTypeText, phonePattern, roleText } from "../../utils/helpers";
 import type { Actor, IdentityType, ManagedUser, Role } from "../../types";
 
 interface AccountsPageProps {
@@ -42,7 +37,7 @@ export function AccountsPage({
   const [passwordDraft, setPasswordDraft] = useState({ currentPassword: "", newPassword: "" });
   const [registerDraft, setRegisterDraft] = useState({
     username: "",
-    password: defaultResetPassword,
+    password: "",
     identityType: "student_no" as IdentityType,
     identityNo: "",
     displayName: "",
@@ -150,7 +145,7 @@ export function AccountsPage({
                 await onRegisterUser(registerDraft);
                 setRegisterDraft({
                   username: "",
-                  password: defaultResetPassword,
+                  password: "",
                   identityType: "student_no",
                   identityNo: "",
                   displayName: "",
@@ -270,7 +265,12 @@ export function AccountsPage({
                           <button
                             type="button"
                             className="tertiary-button"
-                            onClick={() => onResetUserPassword(user.id, defaultResetPassword)}
+                            onClick={() => {
+                              const newPassword = window.prompt("请输入临时密码（至少 8 位）");
+                              if (newPassword && newPassword.length >= 8) {
+                                void onResetUserPassword(user.id, newPassword);
+                              }
+                            }}
                           >
                             重置密码
                           </button>

@@ -3,6 +3,8 @@ import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
 import type {
   Actor,
   InventoryApplication,
+  InventoryCategory,
+  InventoryLoan,
   Material,
   Project,
   StockMovement,
@@ -12,9 +14,11 @@ import type {
 interface InventoryPageProps {
   actor: Actor;
   summary: Summary;
+  categories: InventoryCategory[];
   materials: Material[];
   applications: InventoryApplication[];
   stockMovements: StockMovement[];
+  loans: InventoryLoan[];
   projects: Project[];
   selectedProjectId: string;
   onSubmitApplication: (payload: {
@@ -24,6 +28,15 @@ interface InventoryPageProps {
     projectId?: string;
   }) => Promise<void>;
   onStockIn: (payload: { materialId: string; quantity: number; remark: string }) => Promise<void>;
+  onReturnLoan: (loanId: string) => Promise<void>;
+  onCreateCategory: (payload: {
+    code: string;
+    name: string;
+    returnRequired: boolean;
+    quantityMode: "quantity" | "serialized";
+    serialRequired: boolean;
+    dynamicSchema: Record<string, unknown>;
+  }) => Promise<void>;
   onReviewApplication: (
     applicationId: string,
     action: "approve" | "reject",
@@ -34,13 +47,17 @@ interface InventoryPageProps {
 export function InventoryPage({
   actor,
   summary,
-  materials,
-  applications,
-  stockMovements,
-  projects,
+  categories = [],
+  materials = [],
+  applications = [],
+  stockMovements = [],
+  loans = [],
+  projects = [],
   selectedProjectId,
   onSubmitApplication,
   onStockIn,
+  onReturnLoan,
+  onCreateCategory,
   onReviewApplication
 }: InventoryPageProps) {
   const [selectedMaterialId, setSelectedMaterialId] = useState(materials[0]?.id ?? "");
@@ -48,9 +65,25 @@ export function InventoryPage({
   const [reason, setReason] = useState("课题实验耗材申请");
   const [stockInQuantity, setStockInQuantity] = useState(10);
   const [reviewRemark, setReviewRemark] = useState("库存确认无误，批准领用。");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categoryDraft, setCategoryDraft] = useState({
+    code: "",
+    name: "",
+    returnRequired: false,
+    quantityMode: "quantity" as "quantity" | "serialized",
+    serialRequired: false,
+    dynamicFields: ""
+  });
 
+  const visibleMaterials = useMemo(
+    () =>
+      categoryFilter === "all"
+        ? materials
+        : materials.filter((material) => material.categoryId === categoryFilter),
+    [categoryFilter, materials]
+  );
   const selectedMaterial =
-    materials.find((material) => material.id === selectedMaterialId) ?? materials[0];
+    visibleMaterials.find((material) => material.id === selectedMaterialId) ?? visibleMaterials[0];
   const filteredApplications = useMemo(
     () =>
       selectedProjectId
@@ -59,6 +92,7 @@ export function InventoryPage({
     [applications, selectedProjectId]
   );
   const recentMovements = stockMovements.slice(0, 6);
+  const activeLoans = loans.filter((loan) => loan.status !== "returned");
 
   return (
     <div className="page-grid">
@@ -80,36 +114,178 @@ export function InventoryPage({
         </article>
       </div>
 
-      <div className="split-layout">
-        <SectionCard title="耗材目录" eyebrow="Materials">
-          <div className="catalog-grid">
-            {materials.map((material) => (
-              <button
-                key={material.id}
-                type="button"
-                className={
-                  material.id === selectedMaterial?.id ? "catalog-card active" : "catalog-card"
+      {actor.permissions.includes("inventory:stock") ? (
+        <SectionCard title="类别规则管理" eyebrow="Category rules">
+          <form
+            className="inventory-category-form"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              await onCreateCategory({
+                code: categoryDraft.code.trim(),
+                name: categoryDraft.name.trim(),
+                returnRequired: categoryDraft.returnRequired,
+                quantityMode: categoryDraft.quantityMode,
+                serialRequired: categoryDraft.serialRequired,
+                dynamicSchema: Object.fromEntries(
+                  categoryDraft.dynamicFields
+                    .split(",")
+                    .map((field) => field.trim())
+                    .filter(Boolean)
+                    .map((field) => [field, field])
+                )
+              });
+              setCategoryDraft({
+                code: "",
+                name: "",
+                returnRequired: false,
+                quantityMode: "quantity",
+                serialRequired: false,
+                dynamicFields: ""
+              });
+            }}
+          >
+            <label>
+              类别编码
+              <input
+                required
+                value={categoryDraft.code}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({ ...current, code: event.target.value }))
                 }
-                onClick={() => setSelectedMaterialId(material.id)}
+                placeholder="例如 reagent"
+              />
+            </label>
+            <label>
+              类别名称
+              <input
+                required
+                value={categoryDraft.name}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({ ...current, name: event.target.value }))
+                }
+                placeholder="例如 试剂"
+              />
+            </label>
+            <label>
+              数量模式
+              <select
+                value={categoryDraft.quantityMode}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({
+                    ...current,
+                    quantityMode: event.target.value as "quantity" | "serialized"
+                  }))
+                }
               >
-                <div>
-                  <strong>{material.name}</strong>
-                  <small>{material.spec}</small>
-                </div>
-                <div className="catalog-meta">
-                  <span>{material.location}</span>
-                  <StatusBadge tone={material.stock <= material.warnStock ? "danger" : "active"}>
-                    {material.stock <= material.warnStock ? "预警" : "充足"}
-                  </StatusBadge>
-                </div>
-              </button>
-            ))}
+                <option value="quantity">按数量</option>
+                <option value="serialized">按序列号</option>
+              </select>
+            </label>
+            <label>
+              动态属性（逗号分隔）
+              <input
+                value={categoryDraft.dynamicFields}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({ ...current, dynamicFields: event.target.value }))
+                }
+                placeholder="品牌,型号,保存温度"
+              />
+            </label>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={categoryDraft.returnRequired}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({
+                    ...current,
+                    returnRequired: event.target.checked
+                  }))
+                }
+              />
+              借出后需要归还
+            </label>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={categoryDraft.serialRequired}
+                onChange={(event) =>
+                  setCategoryDraft((current) => ({
+                    ...current,
+                    serialRequired: event.target.checked
+                  }))
+                }
+              />
+              必须登记序列号
+            </label>
+            <button className="primary-button">新增类别</button>
+          </form>
+        </SectionCard>
+      ) : null}
+
+      <div className="split-layout">
+        <SectionCard title="物资目录" eyebrow="Inventory catalog">
+          <div className="inventory-category-toolbar">
+            <label>
+              物资类别
+              <select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+              >
+                <option value="all">全部类别</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="inventory-category-rules">
+              {categories.map((category) => (
+                <span key={category.id} className="panel-tag">
+                  {category.name} · {category.returnRequired ? "需归还" : "不归还"}
+                  {category.serialRequired ? " · 序列号" : ""}
+                </span>
+              ))}
+            </div>
           </div>
+          {visibleMaterials.length === 0 ? (
+            <EmptyState title="暂无该类别物资" text="请切换类别或联系管理员维护物资目录。" />
+          ) : (
+            <div className="catalog-grid">
+              {visibleMaterials.map((material) => (
+                <button
+                  key={material.id}
+                  type="button"
+                  className={
+                    material.id === selectedMaterial?.id ? "catalog-card active" : "catalog-card"
+                  }
+                  onClick={() => setSelectedMaterialId(material.id)}
+                >
+                  <div>
+                    <strong>{material.name}</strong>
+                    <small>{material.spec}</small>
+                    <small>
+                      {material.returnRequired ? "器材 · 需归还" : "耗材 · 领用后不归还"}
+                    </small>
+                  </div>
+                  <div className="catalog-meta">
+                    <span>{material.location}</span>
+                    <StatusBadge tone={material.stock <= material.warnStock ? "danger" : "active"}>
+                      {material.stock <= material.warnStock ? "预警" : "充足"}
+                    </StatusBadge>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </SectionCard>
 
-        <SectionCard title="领用与入库" eyebrow="Actions">
+        <SectionCard title="申请、借用与入库" eyebrow="Actions">
           {!selectedMaterial ? (
-            <EmptyState title="暂无耗材数据" text="接口返回耗材后，这里会显示领用与入库操作。" />
+            <EmptyState
+              title="暂无物资数据"
+              text="接口返回物资后，这里会显示领用、借用与入库操作。"
+            />
           ) : (
             <div className="column-layout">
               <article className="detail-card">
@@ -276,13 +452,52 @@ export function InventoryPage({
                     <small>{movement.remark}</small>
                   </div>
                   <div className="row-inline">
-                    <small>{movement.type === "stock_in" ? "入库" : "领用出库"}</small>
+                    <small>
+                      {movement.type === "stock_in"
+                        ? "入库"
+                        : movement.type === "return"
+                          ? "器材归还"
+                          : "领用出库"}
+                    </small>
                     <span className="numeric">{movement.quantity}</span>
                   </div>
                 </article>
               ))
             )}
           </div>
+        </SectionCard>
+
+        <SectionCard title="器材借还" eyebrow="Loans">
+          {activeLoans.length === 0 ? (
+            <EmptyState title="暂无待归还器材" text="器材审批通过后会在这里生成应还记录。" />
+          ) : (
+            <div className="data-list">
+              {activeLoans.map((loan) => (
+                <article key={loan.id} className="list-row">
+                  <div>
+                    <strong>{loan.materialName}</strong>
+                    <small>
+                      {loan.borrowerName} · 应还 {new Date(loan.dueAt).toLocaleDateString("zh-CN")}
+                    </small>
+                  </div>
+                  <div className="row-inline">
+                    <StatusBadge tone={loan.status === "overdue" ? "danger" : "active"}>
+                      {loan.status === "overdue" ? "已逾期" : "借用中"}
+                    </StatusBadge>
+                    {loan.borrowerId === actor.id ||
+                    actor.permissions.includes("inventory:approve") ? (
+                      <button
+                        className="tertiary-button"
+                        onClick={() => void onReturnLoan(loan.id)}
+                      >
+                        登记归还
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </SectionCard>
       </div>
     </div>

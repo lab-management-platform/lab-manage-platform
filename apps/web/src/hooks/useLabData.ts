@@ -5,15 +5,19 @@ import type {
   ChatHistoryRecord,
   ChatMessage,
   ChatResponse,
+  DashboardSnapshot,
   FaqTemplate,
   FileVersion,
   InventoryApplication,
+  InventoryCategory,
+  InventoryLoan,
   KnowledgeDocument,
   KnowledgeSource,
   LabFile,
   ManagedUser,
   Material,
   Meeting,
+  MeetingAttendance,
   NotificationItem,
   ProgressReport,
   Project,
@@ -45,16 +49,20 @@ async function parseResponse<T>(response: Response): Promise<T> {
 export function useLabData(token: string, actor: Actor | null) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [applications, setApplications] = useState<InventoryApplication[]>([]);
+  const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [loans, setLoans] = useState<InventoryLoan[]>([]);
   const [summary, setSummary] = useState<Summary>({
     materialCount: 0,
     lowStockCount: 0,
     pendingApplications: 0,
     approvedApplications: 0
   });
+  const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
   const [files, setFiles] = useState<LabFile[]>([]);
   const [fileVersions, setFileVersions] = useState<FileVersion[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [meetingAttendance, setMeetingAttendance] = useState<MeetingAttendance[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [profile, setProfile] = useState<ManagedUser | null>(null);
@@ -90,21 +98,33 @@ export function useLabData(token: string, actor: Actor | null) {
       fetch(`${apiBase}/inventory/summary`, { headers })
         .then(parseResponse<Summary>)
         .then(setSummary),
+      fetch(`${apiBase}/dashboard`, { headers })
+        .then(parseResponse<DashboardSnapshot>)
+        .then(setDashboard),
       fetch(`${apiBase}/inventory/materials`, { headers })
         .then(parseResponse<Material[]>)
         .then(setMaterials),
+      fetch(`${apiBase}/inventory/categories`, { headers })
+        .then(parseResponse<InventoryCategory[]>)
+        .then(setInventoryCategories),
       fetch(`${apiBase}/inventory/applications`, { headers })
         .then(parseResponse<InventoryApplication[]>)
         .then(setApplications),
       fetch(`${apiBase}/inventory/stock-movements`, { headers })
         .then(parseResponse<StockMovement[]>)
         .then(setStockMovements),
+      fetch(`${apiBase}/inventory/loans`, { headers })
+        .then(parseResponse<InventoryLoan[]>)
+        .then(setLoans),
       fetch(`${apiBase}/files`, { headers })
         .then(parseResponse<LabFile[]>)
         .then(setFiles),
       fetch(`${apiBase}/meetings`, { headers })
         .then(parseResponse<Meeting[]>)
         .then(setMeetings),
+      fetch(`${apiBase}/meetings/attendance`, { headers })
+        .then(parseResponse<MeetingAttendance[]>)
+        .then(setMeetingAttendance),
       fetch(`${apiBase}/notifications`, { headers })
         .then(parseResponse<NotificationItem[]>)
         .then(setNotifications),
@@ -223,12 +243,16 @@ export function useLabData(token: string, actor: Actor | null) {
     message,
     setMessage,
     summary,
+    dashboard,
     materials,
+    inventoryCategories,
     applications,
     stockMovements,
+    loans,
     files,
     fileVersions,
     meetings,
+    meetingAttendance,
     notifications,
     unreadNotifications,
     users,
@@ -357,6 +381,37 @@ export function useLabData(token: string, actor: Actor | null) {
         setLoading(false);
       }
     },
+    async returnLoan(loanId: string) {
+      if (!token) return;
+      setLoading(true);
+      try {
+        await fetch(`${apiBase}/inventory/loans/${loanId}/return`, {
+          method: "PATCH",
+          headers: toAuthorization(token)
+        }).then(parseResponse<InventoryLoan>);
+        setMessage("器材归还已登记。");
+        await refreshAll();
+      } finally {
+        setLoading(false);
+      }
+    },
+    async createInventoryCategory(payload: {
+      code: string;
+      name: string;
+      returnRequired: boolean;
+      quantityMode: "quantity" | "serialized";
+      serialRequired: boolean;
+      dynamicSchema: Record<string, unknown>;
+    }) {
+      if (!token) return;
+      await fetch(`${apiBase}/inventory/categories`, {
+        method: "POST",
+        headers: toAuthorization(token),
+        body: JSON.stringify(payload)
+      }).then(parseResponse<InventoryCategory>);
+      setMessage("物资类别已创建。");
+      await refreshAll();
+    },
     async reviewApplication(applicationId: string, action: "approve" | "reject", remark: string) {
       if (!token) return;
       setLoading(true);
@@ -399,6 +454,34 @@ export function useLabData(token: string, actor: Actor | null) {
       } finally {
         setLoading(false);
       }
+    },
+    async updateMeetingMinutes(payload: {
+      meetingId: string;
+      summary: string;
+      status: "scheduled" | "completed" | "cancelled";
+    }) {
+      if (!token) return;
+      await fetch(`${apiBase}/meetings/${payload.meetingId}/minutes`, {
+        method: "PATCH",
+        headers: toAuthorization(token),
+        body: JSON.stringify({ summary: payload.summary, status: payload.status })
+      }).then(parseResponse<Meeting>);
+      setMessage("会议纪要已更新。");
+      await refreshAll();
+    },
+    async updateMeetingAttendance(payload: {
+      meetingId: string;
+      status: "pending" | "accepted" | "leave" | "declined";
+      reason?: string;
+    }) {
+      if (!token) return;
+      await fetch(`${apiBase}/meetings/${payload.meetingId}/attendance`, {
+        method: "PATCH",
+        headers: toAuthorization(token),
+        body: JSON.stringify({ status: payload.status, reason: payload.reason })
+      }).then(parseResponse<MeetingAttendance>);
+      setMessage("参会反馈已提交。");
+      await refreshAll();
     },
     async publishAnnouncement(payload: { title: string; content: string; projectId?: string }) {
       if (!token) return;
@@ -512,6 +595,8 @@ export function useLabData(token: string, actor: Actor | null) {
       advisorIdentityNo?: string;
       advisorUserId?: string;
       reportCycleDays?: number;
+      documentUrl?: string;
+      repositoryUrl?: string;
     }) {
       if (!token) return;
       const project = await fetch(`${apiBase}/projects`, {

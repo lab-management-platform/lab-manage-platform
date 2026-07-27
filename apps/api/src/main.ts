@@ -10,7 +10,15 @@ export async function createApiApp() {
 
   app.get("/health", async () => ({
     status: "ok",
-    plugins: kernel.plugins
+    plugins: kernel.plugins,
+    externalServices: {
+      synologyNas: {
+        provider: "Synology NAS",
+        configured: Boolean(process.env.SYNOLOGY_BASE_URL),
+        accessScope: "campus_network_or_vpn",
+        note: "NAS requires campus network or campus VPN access"
+      }
+    }
   }));
 
   app.post("/auth/login", async (request, reply) => {
@@ -27,29 +35,6 @@ export async function createApiApp() {
     return session;
   });
 
-  // 忘记密码：通过用户名/学号 + 手机号验证，重置为随机密码
-  app.post("/auth/forgot-password", async (request, reply) => {
-    const { identifier, phone } = (request.body ?? {}) as {
-      identifier?: string;
-      phone?: string;
-    };
-    if (!identifier?.trim() || !phone?.trim()) {
-      return reply.code(400).send({ error: "请提供账号、学号/工号或绑定手机号" });
-    }
-
-    try {
-      const newPassword = await kernel.resetPasswordByIdentifier(identifier, phone);
-      return { newPassword };
-    } catch (error) {
-      return reply.code(400).send({
-        error:
-          error instanceof Error
-            ? error.message
-            : "验证失败，请确认信息后重试，或联系实验室管理员。"
-      });
-    }
-  });
-
   app.get("/auth/me", async (request, reply) => {
     const authorization = Array.isArray(request.headers.authorization)
       ? request.headers.authorization[0]
@@ -61,6 +46,80 @@ export async function createApiApp() {
 
     return actor;
   });
+
+  app.get("/api/v1/me", async (request, reply) => {
+    const authorization = Array.isArray(request.headers.authorization)
+      ? request.headers.authorization[0]
+      : request.headers.authorization;
+    const actor = await kernel.authenticate(authorization ?? "");
+    if (!actor) {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    return actor;
+  });
+
+  async function dashboardData(
+    actor: NonNullable<Awaited<ReturnType<typeof kernel.authenticate>>>
+  ) {
+    async function readRoute(path: string, query: Record<string, unknown> = {}) {
+      const route = kernel.routes.find((item) => item.method === "GET" && item.path === path);
+      if (!route) return null;
+      const result = await route.handler({ actor, body: undefined, query, params: {} });
+      return result.body;
+    }
+
+    const [projectsPayload, inventoryPayload, meetingsPayload, notificationsPayload] =
+      await Promise.all([
+        readRoute("/projects"),
+        readRoute("/inventory/summary"),
+        readRoute("/meetings"),
+        readRoute("/notifications")
+      ]);
+    const projects = Array.isArray(projectsPayload) ? projectsPayload : [];
+    const meetings = Array.isArray(meetingsPayload) ? meetingsPayload : [];
+    const notifications = Array.isArray(notificationsPayload) ? notificationsPayload : [];
+    const users = actor.permissions.includes("user:read") ? await kernel.listUsers() : [];
+    const projectRecords = projects.filter(
+      (item): item is Record<string, unknown> => typeof item === "object" && item !== null
+    );
+    const annualProjects = projectRecords.reduce<Record<string, number>>((result, project) => {
+      const createdAt = String(project.createdAt ?? "");
+      const year = createdAt.slice(0, 4);
+      if (year) result[year] = (result[year] ?? 0) + 1;
+      return result;
+    }, {});
+
+    return {
+      actor: { id: actor.id, role: actor.role },
+      memberCount: users.length,
+      projectCount: projects.length,
+      activeProjectCount: projectRecords.filter((project) => project.status === "active").length,
+      meetingCount: meetings.length,
+      notificationCount: notifications.length,
+      annualProjects,
+      inventory: inventoryPayload ?? {
+        materialCount: 0,
+        lowStockCount: 0,
+        pendingApplications: 0,
+        approvedApplications: 0
+      }
+    };
+  }
+
+  async function handleDashboard(
+    request: { headers: { authorization?: string | string[] } },
+    reply: { code: (statusCode: number) => { send: (payload: unknown) => unknown } }
+  ) {
+    const authorization = Array.isArray(request.headers.authorization)
+      ? request.headers.authorization[0]
+      : request.headers.authorization;
+    const actor = await kernel.authenticate(authorization ?? "");
+    if (!actor) return reply.code(401).send({ error: "Unauthorized" });
+    return dashboardData(actor);
+  }
+
+  app.get("/dashboard", handleDashboard);
+  app.get("/api/v1/dashboard", handleDashboard);
 
   app.get("/auth/profile", async (request, reply) => {
     const authorization = Array.isArray(request.headers.authorization)
@@ -336,32 +395,34 @@ export async function createApiApp() {
   });
 
   for (const route of kernel.routes) {
-    app.route({
-      method: route.method,
-      url: route.path,
-      handler: async (request, reply) => {
-        const authorization = Array.isArray(request.headers.authorization)
-          ? request.headers.authorization[0]
-          : request.headers.authorization;
-        const actor = await kernel.authenticate(authorization ?? "");
-        if (route.permission && !actor) {
-          return reply.code(401).send({ error: "Unauthorized" });
+    for (const url of [route.path, `/api/v1${route.path}`]) {
+      app.route({
+        method: route.method,
+        url,
+        handler: async (request, reply) => {
+          const authorization = Array.isArray(request.headers.authorization)
+            ? request.headers.authorization[0]
+            : request.headers.authorization;
+          const actor = await kernel.authenticate(authorization ?? "");
+          if (route.permission && !actor) {
+            return reply.code(401).send({ error: "Unauthorized" });
+          }
+
+          if (route.permission && actor) {
+            kernel.assertPermission(actor, route.permission);
+          }
+
+          const result = await route.handler({
+            actor,
+            body: request.body,
+            query: request.query,
+            params: request.params as Record<string, string>
+          });
+
+          return reply.code(result.status ?? 200).send(result.body);
         }
-
-        if (route.permission && actor) {
-          kernel.assertPermission(actor, route.permission);
-        }
-
-        const result = await route.handler({
-          actor,
-          body: request.body,
-          query: request.query,
-          params: request.params as Record<string, string>
-        });
-
-        return reply.code(result.status ?? 200).send(result.body);
-      }
-    });
+      });
+    }
   }
 
   return app;
