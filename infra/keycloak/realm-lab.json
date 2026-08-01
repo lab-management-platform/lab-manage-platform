@@ -24,8 +24,8 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://localhost:5173/*"],
-      "webOrigins": ["http://localhost:5173"],
+      "redirectUris": ["http://localhost:5173/*", "https://lab.wuosu.xyz/*"],
+      "webOrigins": ["http://localhost:5173", "https://lab.wuosu.xyz"],
       "attributes": { "pkce.code.challenge.method": "S256" }
     },
     {
