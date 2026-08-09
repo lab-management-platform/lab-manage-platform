@@ -903,10 +903,7 @@ function buildPromptForMode(
 
   if (sources.length > 0) {
     const context = sources
-      .map(
-        (s, i) =>
-          `[参考文档${i + 1}（标题：${s.title}）]\n${s.content ?? s.snippet ?? ""}`
-      )
+      .map((s, i) => `[参考文档${i + 1}（标题：${s.title}）]\n${s.content ?? s.snippet ?? ""}`)
       .join("\n\n");
     messages.push({
       role: "system",
@@ -917,8 +914,7 @@ function buildPromptForMode(
   if (mode === "qa" && !sources.length) {
     messages.push({
       role: "system",
-      content:
-        "【提示】本次未在知识库中检索到任何相关参考文档，请严格按照'未命中'规则给出回复。"
+      content: "【提示】本次未在知识库中检索到任何相关参考文档，请严格按照'未命中'规则给出回复。"
     });
   }
 
@@ -1037,9 +1033,7 @@ function describeToolIntent(name: string, args: Record<string, unknown>): string
     case "get_my_applications":
       return "查询你近期提交的耗材申请与审批状态。";
     case "get_stock_movements":
-      return `查询库存流水记录${
-        args.material_name ? `（关键词：${args.material_name}）` : ""
-      }。`;
+      return `查询库存流水记录${args.material_name ? `（关键词：${args.material_name}）` : ""}。`;
     case "get_meetings":
       return `查询近期会议安排${args.status ? `（状态：${args.status}）` : ""}。`;
     case "get_notifications":
@@ -1418,7 +1412,10 @@ export const aiPlugin: PluginManifest = {
                 if (referencedTitles.length && !reply.includes("[来源：")) {
                   reply = `${reply}\n\n[来源：${referencedTitles.join("；")}]`;
                 }
-                if (!referencedTitles.length && !reply.includes("未在知识库查找到相应操作，酌情采纳")) {
+                if (
+                  !referencedTitles.length &&
+                  !reply.includes("未在知识库查找到相应操作，酌情采纳")
+                ) {
                   // 零命中时，统一补足兜底话术
                   reply = rawReply
                     ? `${rawReply}\n\n未在知识库查找到相应操作，酌情采纳。`
@@ -1485,7 +1482,9 @@ export const aiPlugin: PluginManifest = {
                         role: "tool",
                         tool_call_id: tc.id,
                         content: `【等待用户确认】${flag.intent}${
-                          isWriteTool(tc.name) ? "（写操作，需要你点击确认后执行）" : "（读操作，需要你点击确认后执行）"
+                          isWriteTool(tc.name)
+                            ? "（写操作，需要你点击确认后执行）"
+                            : "（读操作，需要你点击确认后执行）"
                         }`
                       } as ChatMessage);
                       toolCallCount++;
@@ -1501,9 +1500,7 @@ export const aiPlugin: PluginManifest = {
 
                 // 若本轮生成了待确认工具调用，把需要确认的意图写进 reply 摘要，方便前端展示
                 if (!reply && needsConfirmation.length) {
-                  const summary = needsConfirmation
-                    .map((f) => `· ${f.intent}`)
-                    .join("\n");
+                  const summary = needsConfirmation.map((f) => `· ${f.intent}`).join("\n");
                   reply = `为了更好地回答你的问题，我需要先执行以下查询或操作：\n${summary}\n\n请确认是否允许我执行。${
                     needsConfirmation.some((n) => isWriteTool(n.name))
                       ? " 注意：其中包含写操作，执行前请再次核对参数。"

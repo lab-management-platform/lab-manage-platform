@@ -28,10 +28,8 @@ function normalizeRole(role: Role): "student" | "professor" | "lab_admin" {
 function parseHash(): { view: AppView | null; projectId: string } {
   const hash = window.location.hash.replace(/^#\/?/, "");
   const [viewRaw, projectIdRaw] = hash.split("/");
-  const knownViews = new Set<AppView>(
-    navItems.map((item) => item.id)
-  );
-  const view = (knownViews.has(viewRaw as AppView) ? (viewRaw as AppView) : null);
+  const knownViews = new Set<AppView>(navItems.map((item) => item.id));
+  const view = knownViews.has(viewRaw as AppView) ? (viewRaw as AppView) : null;
   return { view, projectId: projectIdRaw ?? "" };
 }
 
@@ -236,9 +234,7 @@ export function App() {
           unreadCount={lab.unreadNotifications.length}
           onOpenView={openView}
           onSelectProject={(projectId) => void selectProject(projectId)}
-          onOpenProjectDetail={
-            selectedProjectId ? () => openView("projects") : undefined
-          }
+          onOpenProjectDetail={selectedProjectId ? () => openView("projects") : undefined}
           onLogout={logout}
         />
 

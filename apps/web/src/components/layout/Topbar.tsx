@@ -77,11 +77,7 @@ export function Topbar({
               <div className="project-meta-chip">负责人 · {activeProject.ownerName}</div>
             ) : null}
             {activeProject && onOpenProjectDetail ? (
-              <button
-                type="button"
-                className="tertiary-button"
-                onClick={onOpenProjectDetail}
-              >
+              <button type="button" className="tertiary-button" onClick={onOpenProjectDetail}>
                 查看项目详情
               </button>
             ) : null}

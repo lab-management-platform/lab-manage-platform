@@ -102,11 +102,7 @@ export function LoginForm({
         </button>
         <span className="login-message">{message}</span>
 
-        <button
-          type="button"
-          className="forgot-link"
-          onClick={() => setShowForgotTip((v) => !v)}
-        >
+        <button type="button" className="forgot-link" onClick={() => setShowForgotTip((v) => !v)}>
           忘记密码？
         </button>
         {showForgotTip ? (

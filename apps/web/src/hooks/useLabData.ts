@@ -41,7 +41,11 @@ function toAuthorization(token: string) {
 // 会话过期回调（由 App 注入，避免循环依赖）
 type SessionExpiredHandler = () => void;
 
-export function useLabData(token: string, actor: Actor | null, onSessionExpired?: SessionExpiredHandler) {
+export function useLabData(
+  token: string,
+  actor: Actor | null,
+  onSessionExpired?: SessionExpiredHandler
+) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [applications, setApplications] = useState<InventoryApplication[]>([]);
   const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
