@@ -14,8 +14,30 @@ import { AccountsPage } from "./pages/AccountsPage";
 import { navItems, type AppView } from "../config/navigation";
 import { useLabData } from "../hooks/useLabData";
 import { apiBase } from "../utils/helpers";
-import type { Actor } from "../types";
+import type { Actor, Role } from "../types";
 import { actorFromOidcUser, oidcEnabled, oidcManager } from "../auth/oidc";
+
+// 将历史遗留角色（member/admin/super_admin）归一到 navigation 支持的三种角色
+function normalizeRole(role: Role): "student" | "professor" | "lab_admin" {
+  if (role === "member") return "student";
+  if (role === "admin" || role === "super_admin") return "lab_admin";
+  return role;
+}
+
+// 解析 hash 路由：#/<view>[/<projectId>]
+function parseHash(): { view: AppView | null; projectId: string } {
+  const hash = window.location.hash.replace(/^#\/?/, "");
+  const [viewRaw, projectIdRaw] = hash.split("/");
+  const knownViews = new Set<AppView>(
+    navItems.map((item) => item.id)
+  );
+  const view = (knownViews.has(viewRaw as AppView) ? (viewRaw as AppView) : null);
+  return { view, projectId: projectIdRaw ?? "" };
+}
+
+function buildHash(view: AppView, projectId: string): string {
+  return projectId ? `#/${view}/${projectId}` : `#/${view}`;
+}
 
 export function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem("lab_token") ?? "");
@@ -25,32 +47,67 @@ export function App() {
   });
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [resetMode, setResetMode] = useState(false);
-  const [resetIdentifier, setResetIdentifier] = useState("");
-  const [resetPhone, setResetPhone] = useState("");
-  const [resetResult, setResetResult] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
-  const [activeView, setActiveView] = useState<AppView>("dashboard");
+  const initialHash = parseHash();
+  const [activeView, setActiveView] = useState<AppView>(initialHash.view ?? "dashboard");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState(initialHash.projectId);
 
-  const lab = useLabData(token, actor);
+  const clearSession = () => {
+    setToken("");
+    setActor(null);
+    setSelectedProjectId("");
+    sessionStorage.removeItem("lab_token");
+    sessionStorage.removeItem("lab_actor");
+  };
+
+  const lab = useLabData(token, actor, clearSession);
+
+  const normalizedRole = actor ? normalizeRole(actor.role) : null;
 
   const visibleViews = useMemo(() => {
-    if (!actor) return [];
+    if (!actor || !normalizedRole) return [];
     return navItems.filter(
       (item) =>
-        item.roles.includes(actor.role) &&
+        item.roles.includes(normalizedRole) &&
         (!item.permission || actor.permissions.includes(item.permission))
     );
+  }, [actor, normalizedRole]);
+
+  // #6: hash 路由同步 - view/projectId 变化时更新 URL（pushState 保留历史记录）
+  useEffect(() => {
+    if (!actor) return;
+    const expected = buildHash(activeView, selectedProjectId);
+    if (window.location.hash !== expected && window.location.hash !== "") {
+      window.history.pushState({}, "", expected);
+    } else if (window.location.hash === "") {
+      // 首次进入：用 replaceState 填充初始 hash，不污染历史
+      window.history.replaceState({}, "", expected);
+    }
+  }, [activeView, selectedProjectId, actor]);
+
+  // #6: 监听浏览器前进/后退
+  useEffect(() => {
+    if (!actor) return;
+    const onHashChange = () => {
+      const { view, projectId } = parseHash();
+      if (view) setActiveView(view);
+      setSelectedProjectId(projectId);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, [actor]);
 
+  // #6: 兜底 - 当前 view 不在可见列表时切到首项
   useEffect(() => {
+    if (!actor) return;
+    if (visibleViews.length === 0) return;
     if (!visibleViews.some((item) => item.id === activeView)) {
-      setActiveView(visibleViews[0]?.id ?? "dashboard");
+      setActiveView(visibleViews[0].id);
     }
-  }, [activeView, visibleViews]);
+  }, [activeView, visibleViews, actor]);
 
+  // #5: 去掉 lab.projects 依赖，只在 actor/projectId 变化时加载
   useEffect(() => {
     if (!actor) return;
     if (selectedProjectId) {
@@ -62,7 +119,8 @@ export function App() {
     lab.loadProjectWorkspace("").catch(() => {
       // keep shell responsive
     });
-  }, [actor, selectedProjectId, lab.projects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actor, selectedProjectId]);
 
   useEffect(() => {
     if (!actor || !lab.message) {
@@ -74,9 +132,10 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [actor, lab.message, lab.setMessage]);
 
+  // #11: view 和 projectId 变化都滚动到顶部
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [activeView]);
+  }, [activeView, selectedProjectId]);
 
   useEffect(() => {
     if (!oidcEnabled) return;
@@ -90,6 +149,20 @@ export function App() {
       }
     })();
   }, []);
+
+  // #12: 统一关闭移动端导航
+  const openView = (view: AppView) => {
+    setActiveView(view);
+    setMobileNavOpen(false);
+  };
+
+  const selectProject = async (projectId: string, view?: AppView) => {
+    setSelectedProjectId(projectId);
+    await lab.loadProjectWorkspace(projectId);
+    if (view) {
+      setMobileNavOpen(false);
+    }
+  };
 
   async function login(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,23 +190,11 @@ export function App() {
     }
   }
 
-  async function resetPassword(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void event;
-    void resetIdentifier;
-    void resetPhone;
-    setResetResult("密码重置已迁移到统一身份认证，请联系管理员或使用身份认证中心的找回密码流程。");
-  }
-
   function logout() {
     if (oidcEnabled) {
       void oidcManager.signoutRedirect();
     }
-    setToken("");
-    setActor(null);
-    setSelectedProjectId("");
-    sessionStorage.removeItem("lab_token");
-    sessionStorage.removeItem("lab_actor");
+    clearSession();
   }
 
   if (!actor) {
@@ -146,15 +207,7 @@ export function App() {
         setPassword={setPassword}
         loading={authLoading}
         message={lab.message}
-        resetMode={resetMode}
-        setResetMode={setResetMode}
-        resetIdentifier={resetIdentifier}
-        setResetIdentifier={setResetIdentifier}
-        resetPhone={resetPhone}
-        setResetPhone={setResetPhone}
-        resetResult={resetResult}
         onSubmit={login}
-        onResetPassword={resetPassword}
       />
     );
   }
@@ -170,10 +223,7 @@ export function App() {
       <Sidebar
         actor={actor}
         activeView={activeView}
-        onNavigate={(view) => {
-          setActiveView(view);
-          setMobileNavOpen(false);
-        }}
+        onNavigate={openView}
         onToggleMobileNav={() => setMobileNavOpen((current) => !current)}
         mobileNavOpen={mobileNavOpen}
       />
@@ -184,14 +234,11 @@ export function App() {
           projects={lab.projects}
           selectedProjectId={selectedProjectId}
           unreadCount={lab.unreadNotifications.length}
-          onOpenView={(view) => {
-            setActiveView(view);
-            setMobileNavOpen(false);
-          }}
-          onSelectProject={async (projectId) => {
-            setSelectedProjectId(projectId);
-            await lab.loadProjectWorkspace(projectId);
-          }}
+          onOpenView={openView}
+          onSelectProject={(projectId) => void selectProject(projectId)}
+          onOpenProjectDetail={
+            selectedProjectId ? () => openView("projects") : undefined
+          }
           onLogout={logout}
         />
 
@@ -201,18 +248,16 @@ export function App() {
               actor={actor}
               actorName={actor.displayName}
               summary={lab.summary}
-              categories={lab.inventoryCategories}
               projects={lab.projects}
               tasks={lab.projectTasks}
               materials={lab.materials}
               applications={lab.applications}
               notifications={lab.notifications}
               dashboard={lab.dashboard}
-              onOpenView={(view) => setActiveView(view)}
+              onOpenView={openView}
               onSelectProject={(projectId) => {
-                setSelectedProjectId(projectId);
-                void lab.loadProjectWorkspace(projectId);
-                setActiveView("projects");
+                void selectProject(projectId);
+                openView("projects");
               }}
             />
           ) : null}
@@ -222,10 +267,7 @@ export function App() {
               actor={actor}
               projects={lab.projects}
               selectedProjectId={selectedProjectId}
-              onSelectProject={async (projectId) => {
-                setSelectedProjectId(projectId);
-                await lab.loadProjectWorkspace(projectId);
-              }}
+              onSelectProject={(projectId) => void selectProject(projectId)}
               tasks={lab.projectTasks}
               projectNotes={lab.projectNotes}
               progressReports={lab.progressReports}
@@ -255,6 +297,7 @@ export function App() {
             <InventoryPage
               actor={actor}
               summary={lab.summary}
+              categories={lab.inventoryCategories}
               materials={lab.materials}
               applications={lab.applications}
               stockMovements={lab.stockMovements}

@@ -9,6 +9,7 @@ import type {
   ProjectTask,
   Summary
 } from "../../types";
+import type { AppView } from "../../config/navigation";
 
 interface DashboardPageProps {
   actor: Actor;
@@ -20,7 +21,7 @@ interface DashboardPageProps {
   applications: InventoryApplication[];
   notifications: NotificationItem[];
   dashboard: DashboardSnapshot | null;
-  onOpenView: (view: "projects" | "inventory" | "files" | "meetings" | "ai") => void;
+  onOpenView: (view: AppView) => void;
   onSelectProject: (projectId: string) => void;
 }
 
@@ -172,7 +173,10 @@ export function DashboardPage({
                   key={project.id}
                   className="list-row project-row dashboard-project-row"
                   type="button"
-                  onClick={() => onSelectProject(project.id)}
+                  onClick={() => {
+                    onSelectProject(project.id);
+                    onOpenView("projects");
+                  }}
                 >
                   <div>
                     <strong>{project.name}</strong>
