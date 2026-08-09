@@ -38,15 +38,10 @@ function toAuthorization(token: string) {
   };
 }
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error ?? "请求失败");
-  }
-  return payload as T;
-}
+// 会话过期回调（由 App 注入，避免循环依赖）
+type SessionExpiredHandler = () => void;
 
-export function useLabData(token: string, actor: Actor | null) {
+export function useLabData(token: string, actor: Actor | null, onSessionExpired?: SessionExpiredHandler) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [applications, setApplications] = useState<InventoryApplication[]>([]);
   const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
@@ -87,6 +82,19 @@ export function useLabData(token: string, actor: Actor | null) {
     () => notifications.filter((item) => !item.readAt),
     [notifications]
   );
+
+  // #8: 401 统一处理 - 会话过期自动登出
+  async function parseResponse<T>(response: Response): Promise<T> {
+    if (response.status === 401 && onSessionExpired) {
+      onSessionExpired();
+      throw new Error("会话已过期，请重新登录");
+    }
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error ?? "请求失败");
+    }
+    return payload as T;
+  }
 
   async function refreshAll(activeToken = token, activeActor = actor) {
     if (!activeToken || !activeActor) {

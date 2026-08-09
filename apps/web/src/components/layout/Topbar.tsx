@@ -10,6 +10,7 @@ interface TopbarProps {
   onSelectProject: (projectId: string) => void;
   onOpenView: (view: AppView) => void;
   onLogout: () => void;
+  onOpenProjectDetail?: () => void;
 }
 
 export function Topbar({
@@ -19,7 +20,8 @@ export function Topbar({
   unreadCount,
   onSelectProject,
   onOpenView,
-  onLogout
+  onLogout,
+  onOpenProjectDetail
 }: TopbarProps) {
   const activeProject = projects.find((project) => project.id === selectedProjectId);
   const now = new Intl.DateTimeFormat("zh-CN", {
@@ -73,6 +75,15 @@ export function Topbar({
             </div>
             {activeProject ? (
               <div className="project-meta-chip">负责人 · {activeProject.ownerName}</div>
+            ) : null}
+            {activeProject && onOpenProjectDetail ? (
+              <button
+                type="button"
+                className="tertiary-button"
+                onClick={onOpenProjectDetail}
+              >
+                查看项目详情
+              </button>
             ) : null}
           </div>
         </div>

@@ -7,15 +7,7 @@ interface LoginFormProps {
   setPassword: (v: string) => void;
   loading: boolean;
   message: string;
-  resetMode: boolean;
-  setResetMode: (v: boolean) => void;
-  resetIdentifier: string;
-  setResetIdentifier: (v: string) => void;
-  resetPhone: string;
-  setResetPhone: (v: string) => void;
-  resetResult: string;
   onSubmit: (e: SyntheticEvent<HTMLFormElement>) => void;
-  onResetPassword: (e: SyntheticEvent<HTMLFormElement>) => void;
 }
 
 export function LoginForm({
@@ -25,75 +17,10 @@ export function LoginForm({
   setPassword,
   loading,
   message,
-  resetMode,
-  setResetMode,
-  resetIdentifier,
-  setResetIdentifier,
-  resetPhone,
-  setResetPhone,
-  resetResult,
-  onSubmit,
-  onResetPassword
+  onSubmit
 }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
-
-  if (resetMode) {
-    return (
-      <main className="login-shell">
-        <form className="login-panel" onSubmit={onResetPassword} autoComplete="off">
-          <div className="brand login-brand">
-            <span className="brand-glyph">◈</span>
-            <div>
-              <strong>实验室管理平台</strong>
-              <span>Lab Ops Console</span>
-            </div>
-          </div>
-          <h1>找回密码</h1>
-          <p>输入账号或学号/工号，以及绑定的手机号。</p>
-
-          <label>
-            账号 / 学号 / 工号
-            <input
-              value={resetIdentifier}
-              autoComplete="off"
-              placeholder="请输入账号或学号/工号"
-              onChange={(event) => setResetIdentifier(event.target.value)}
-            />
-          </label>
-          <label>
-            绑定手机号
-            <input
-              value={resetPhone}
-              autoComplete="off"
-              placeholder="请输入绑定的手机号"
-              onChange={(event) => setResetPhone(event.target.value)}
-            />
-          </label>
-          <button className="primary" disabled={loading}>
-            {loading ? "验证中..." : "找回密码"}
-          </button>
-
-          {resetResult ? (
-            <div className="reset-result">
-              <p>{resetResult}</p>
-              {resetResult.includes("新密码") ? null : <p>如无法自助找回，请联系实验室管理员。</p>}
-            </div>
-          ) : null}
-
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => {
-              setResetMode(false);
-            }}
-          >
-            <span aria-hidden="true">←</span>
-            返回登录
-          </button>
-        </form>
-      </main>
-    );
-  }
+  const [showForgotTip, setShowForgotTip] = useState(false);
 
   return (
     <main className="login-shell">
@@ -175,9 +102,19 @@ export function LoginForm({
         </button>
         <span className="login-message">{message}</span>
 
-        <button type="button" className="forgot-link" onClick={() => setResetMode(true)}>
+        <button
+          type="button"
+          className="forgot-link"
+          onClick={() => setShowForgotTip((v) => !v)}
+        >
           忘记密码？
         </button>
+        {showForgotTip ? (
+          <div className="reset-result">
+            <p>请联系实验室管理员在「管理中心」重置您的密码。</p>
+            <p>登录后也可在「管理中心 → 密码与安全」自助修改。</p>
+          </div>
+        ) : null}
       </form>
     </main>
   );

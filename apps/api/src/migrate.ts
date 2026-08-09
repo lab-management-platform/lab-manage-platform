@@ -1,7 +1,11 @@
+import { config } from "dotenv";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+config({ path: path.resolve(__dirname, "../../../.env") });
 
 const databaseUrl = process.env.DATABASE_URL;
 
