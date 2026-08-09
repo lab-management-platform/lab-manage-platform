@@ -103,10 +103,7 @@ async function collectSeedDocs(): Promise<SeedDoc[]> {
     const content = (parsed.content || raw).trim();
     if (!content) continue;
     if (fileName === "00-文档索引.md") continue;
-    const tags =
-      parsed.tags.length > 0
-        ? parsed.tags
-        : [parsed.category].filter(Boolean);
+    const tags = parsed.tags.length > 0 ? parsed.tags : [parsed.category].filter(Boolean);
     docs.push({
       title: parsed.title,
       content,
@@ -177,9 +174,7 @@ async function main() {
             [existingId, doc.content, doc.category, doc.tags, doc.sourceFileName]
           );
           // 旧 embedding 也清理，保持一致性（不强制重新生成 embedding，等应用启动或调用 reindex 即可）
-          await client.query("DELETE FROM ai.knowledge_embedding WHERE doc_id = $1", [
-            existingId
-          ]);
+          await client.query("DELETE FROM ai.knowledge_embedding WHERE doc_id = $1", [existingId]);
           updated++;
           console.log(`[update] ${doc.title}`);
           continue;
@@ -190,15 +185,7 @@ async function main() {
              id, title, content, category, tags, source_file_name, source_mime_type,
              source_import_method, created_by
            ) VALUES ($1, $2, $3, $4, $5, $6, 'text/markdown', 'seed', $7)`,
-          [
-            id,
-            doc.title,
-            doc.content,
-            doc.category,
-            doc.tags,
-            doc.sourceFileName,
-            seedActorId
-          ]
+          [id, doc.title, doc.content, doc.category, doc.tags, doc.sourceFileName, seedActorId]
         );
         inserted++;
         console.log(`[insert] ${doc.title}`);
