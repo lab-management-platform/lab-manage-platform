@@ -117,7 +117,6 @@ export function App() {
     lab.loadProjectWorkspace("").catch(() => {
       // keep shell responsive
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actor, selectedProjectId]);
 
   useEffect(() => {

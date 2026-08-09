@@ -927,10 +927,6 @@ function extractTitlesFromSources(sources: KnowledgeSource[]): string[] {
   return [...new Set(titles)];
 }
 
-function buildRagPrompt(userMessage: string, sources: KnowledgeSource[]): ChatMessage[] {
-  return buildPromptForMode("agent", userMessage, sources);
-}
-
 // ── Agent Tools ────────────────────────────────────────
 
 const AGENT_TOOLS: ToolDefinition[] = [
@@ -1050,6 +1046,9 @@ function describeToolIntent(name: string, args: Record<string, unknown>): string
 const FALLBACK_NO_KNOWLEDGE_REPLY =
   "未在知识库查找到相应操作，酌情采纳。建议联系实验室管理员进一步确认，或在 AI 知识库中补充对应文档后再提问。";
 
+// executeTool 在 agent 模式的"用户确认后执行"闭环中调用（POST /ai/chat/confirm）。
+// 当前 QA 优先阶段暂未接入该接口，保留实现以便下一步直接使用。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function executeTool(toolCall: ToolCall, pool: pg.Pool, actor: Actor): Promise<string> {
   const args = toolCall.arguments;
   const actorId = actor.id;
