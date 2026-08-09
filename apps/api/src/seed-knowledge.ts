@@ -24,6 +24,7 @@ type SeedDoc = {
   category: string;
   tags: string[];
   sourceFileName: string;
+  isOutline: boolean;
 };
 
 function extractFrontMatter(md: string, fallbackTitle: string, fallbackCategory: string) {
@@ -102,14 +103,22 @@ async function collectSeedDocs(): Promise<SeedDoc[]> {
     const parsed = extractFrontMatter(raw, defaultTitle, defaultCategory);
     const content = (parsed.content || raw).trim();
     if (!content) continue;
+    // 总纲文档（00-* 开头，或文件名中含"总纲/索引/全景"）单独标记
+    const isOutline =
+      /^00-/.test(fileName) ||
+      /(总纲|全景|功能索引|文档索引)/.test(parsed.title) ||
+      fileName === "00-文档索引.md";
+    // 00-文档索引.md 已被取代为新的总纲文件，跳过旧文件
     if (fileName === "00-文档索引.md") continue;
-    const tags = parsed.tags.length > 0 ? parsed.tags : [parsed.category].filter(Boolean);
+    const baseTags = parsed.tags.length > 0 ? parsed.tags : [parsed.category].filter(Boolean);
+    const tags = isOutline && !baseTags.includes("总纲") ? [...baseTags, "总纲"] : baseTags;
     docs.push({
       title: parsed.title,
       content,
       category: parsed.category,
       tags,
-      sourceFileName: fileName
+      sourceFileName: fileName,
+      isOutline
     });
   }
   return docs;
@@ -127,11 +136,22 @@ async function ensureSchema(pool: pg.Pool) {
       source_file_name TEXT,
       source_mime_type TEXT,
       source_import_method TEXT NOT NULL DEFAULT 'manual',
+      is_outline BOOLEAN NOT NULL DEFAULT FALSE,
       created_by TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await pool.query(`
+    ALTER TABLE ai.knowledge_document
+      ADD COLUMN IF NOT EXISTS is_outline BOOLEAN NOT NULL DEFAULT FALSE;
+  `);
+  await pool.query(
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_doc_outline ON ai.knowledge_document(is_outline)"
+  );
+  await pool.query(
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_doc_source ON ai.knowledge_document(source_file_name)"
+  );
 }
 
 async function main() {
@@ -169,9 +189,9 @@ async function main() {
           await client.query(
             `UPDATE ai.knowledge_document
              SET content = $2, category = $3, tags = $4, source_file_name = $5,
-                 source_mime_type = 'text/markdown', updated_at = now()
+                 source_mime_type = 'text/markdown', is_outline = $6, updated_at = now()
              WHERE id = $1`,
-            [existingId, doc.content, doc.category, doc.tags, doc.sourceFileName]
+            [existingId, doc.content, doc.category, doc.tags, doc.sourceFileName, doc.isOutline]
           );
           // 旧 embedding 也清理，保持一致性（不强制重新生成 embedding，等应用启动或调用 reindex 即可）
           await client.query("DELETE FROM ai.knowledge_embedding WHERE doc_id = $1", [existingId]);
@@ -183,9 +203,18 @@ async function main() {
         await client.query(
           `INSERT INTO ai.knowledge_document (
              id, title, content, category, tags, source_file_name, source_mime_type,
-             source_import_method, created_by
-           ) VALUES ($1, $2, $3, $4, $5, $6, 'text/markdown', 'seed', $7)`,
-          [id, doc.title, doc.content, doc.category, doc.tags, doc.sourceFileName, seedActorId]
+             source_import_method, is_outline, created_by
+           ) VALUES ($1, $2, $3, $4, $5, $6, 'text/markdown', 'seed', $7, $8)`,
+          [
+            id,
+            doc.title,
+            doc.content,
+            doc.category,
+            doc.tags,
+            doc.sourceFileName,
+            doc.isOutline,
+            seedActorId
+          ]
         );
         inserted++;
         console.log(`[insert] ${doc.title}`);
