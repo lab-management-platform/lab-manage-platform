@@ -3,6 +3,348 @@ import type { Actor, PluginManifest } from "@lab/core";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 
+// ════════════════════════════════════════════════════════════════════════════
+// 检索增强模块：中文分词 / 同义词扩展 / 关键词打分 / 向量检索失败降级
+// ════════════════════════════════════════════════════════════════════════════
+
+// 中文停用词：疑问语气词、介词、助词、副词等——这些词对检索区分度为 0，反而拉高 ILIKE 成本
+const STOP_WORDS = new Set([
+  // 语气 / 疑问词
+  "怎么",
+  "怎样",
+  "如何",
+  "为什么",
+  "为啥",
+  "什么",
+  "啥",
+  "哪儿",
+  "哪里",
+  "哪个",
+  "哪些",
+  "吗",
+  "呢",
+  "吧",
+  "啊",
+  "哦",
+  "呀",
+  "呃",
+  "嗯",
+  "哈",
+  "啦",
+  "呗",
+  "嘛",
+  // 代词
+  "我",
+  "你",
+  "他",
+  "她",
+  "它",
+  "我们",
+  "你们",
+  "他们",
+  "自己",
+  "这",
+  "那",
+  "这个",
+  "那个",
+  "这些",
+  "那些",
+  // 副词 / 介词 / 连词
+  "的",
+  "地",
+  "得",
+  "了",
+  "着",
+  "过",
+  "在",
+  "是",
+  "有",
+  "和",
+  "与",
+  "及",
+  "或",
+  "但是",
+  "但",
+  "可以",
+  "能",
+  "能够",
+  "会",
+  "应该",
+  "要",
+  "想",
+  "请问",
+  "请问一下",
+  "一下",
+  "有没有",
+  "有没有办法",
+  "告诉",
+  "教我",
+  "告诉我",
+  "说明",
+  "说一下",
+  "讲下",
+  "讲一下",
+  "帮忙",
+  "帮助",
+  "一个",
+  "一下",
+  "一些",
+  "这种",
+  "那种",
+  "什么样",
+  "怎么样",
+  "是否",
+  "能否",
+  "能不能",
+  "会不会",
+  "请",
+  "麻烦",
+  "谢谢",
+  "感谢",
+  "多谢",
+  "各位",
+  "大家",
+  // 常见后缀
+  "平台",
+  "系统",
+  "功能",
+  "操作",
+  "步骤",
+  "方法",
+  "办法",
+  "流程",
+  "教程",
+  "指南",
+  "文档"
+]);
+
+// 同义词表：用户口头提问常见表述 -> 知识库中正式名词。两个方向互相补充命中率
+const SYNONYM_MAP: Record<string, string[]> = {
+  登录: ["登入", "进入", "进去", "登陆", "访问"],
+  登入: ["登录", "进入", "登陆"],
+  账号: ["账户", "用户名", "用户", "id"],
+  密码: ["口令", "密碼"],
+  项目: ["课题", "project"],
+  库存: ["耗材", "物资", "物品"],
+  申请: ["领用", "借出", "借用", "请求"],
+  审批: ["审核", "批准", "批复"],
+  成员: ["组员", "同学", "用户"],
+  文件: ["资料", "文档", "上传", "下载"],
+  项目树: ["项目结构", "子项目", "层级"],
+  笔记: ["记录", "日志", "心得"],
+  公告: ["通知", "消息", "发布"],
+  开会: ["会议", "参会", "日程"],
+  任务: ["待办", "todo"],
+  评论: ["留言", "讨论"]
+};
+
+/**
+ * 中文查询分词：
+ * 1. 去除标点符号和空白
+ * 2. 英文/数字整词保留（按空白/标点切）
+ * 3. 中文：按长度 1~3 字滑窗提取候选词项
+ * 4. 去停用词 + 去重；同义词扩展（可选）
+ */
+function tokenizeQuery(raw: string, withSynonyms = true): string[] {
+  if (!raw) return [];
+  // 去除常见标点 & 空白
+  const cleaned = raw
+    .replace(/[，。！？、…—·（）【】《》"'`~!@#$%^&*()+=\][{};:/\\|,.<>?—-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  if (!cleaned) return [];
+
+  const terms = new Set<string>();
+  const parts = cleaned.split(" ").filter(Boolean);
+
+  for (const part of parts) {
+    // 纯英文/数字 -> 整个 term 保留（也要去停用）
+    if (/^[a-zA-Z0-9_.-]+$/.test(part)) {
+      if (!STOP_WORDS.has(part) && part.length >= 2) terms.add(part);
+      continue;
+    }
+
+    // 混合/中文：滑窗 1~3 字提取，但 1 字词必须是高价值名词（不在停用表里）
+    const len = part.length;
+    for (let i = 0; i < len; i++) {
+      // 3 字
+      if (i + 3 <= len) {
+        const t = part.slice(i, i + 3);
+        if (!STOP_WORDS.has(t)) terms.add(t);
+      }
+      // 2 字
+      if (i + 2 <= len) {
+        const t = part.slice(i, i + 2);
+        if (!STOP_WORDS.has(t)) terms.add(t);
+      }
+      // 1 字：只有数字/英文或明确不在停用表才留（基本中文 1 字价值低，默认不加）
+      if (i + 1 <= len) {
+        const t = part[i]!;
+        if (/^[0-9a-zA-Z]$/.test(t)) terms.add(t);
+      }
+    }
+  }
+
+  // 同义词扩展（每个 term 的所有别名一起加入查询，命中率 +30%+）
+  if (withSynonyms) {
+    const expanded = new Set<string>(terms);
+    for (const t of terms) {
+      const syns = SYNONYM_MAP[t];
+      if (syns) for (const s of syns) expanded.add(s);
+      // 反查：如果 value 里命中 term，把 key 也加进去
+      for (const [k, vs] of Object.entries(SYNONYM_MAP)) {
+        if (vs.includes(t)) expanded.add(k);
+      }
+    }
+    return Array.from(expanded).filter((t) => t.length >= 1);
+  }
+  return Array.from(terms);
+}
+
+/**
+ * 关键词搜索 fallback 的核心：
+ * - 把 query 切成 term[]，term1 OR term2 OR term3 ……
+ * - 在数据库里先选出"至少命中 1 个 term"的文档
+ * - 在 Node 端按"标题命中数 * 标题权重 + 内容命中数 * 内容权重 + 长短语整句加分"做精细排序
+ *   （而不是让 Postgres 对整句 ILIKE——整句几乎不可能命中中文问句）
+ */
+async function keywordSearchByTerms(
+  pool: pg.Pool,
+  query: string,
+  limit: number,
+  outlineOnly: boolean
+): Promise<KnowledgeSource[]> {
+  const terms = tokenizeQuery(query);
+  if (terms.length === 0) return [];
+
+  // ILIKE 短语参数：$1 = term1, $2 = term2, $3 = term3 …
+  const likeArgs = terms.map((t) => `%${t}%`);
+  // 命中判断：一个 term 命中算一次；统计"标题命中次数"和"内容命中次数"用来打分
+  const titleHitCases = terms
+    .map((_, i) => `(CASE WHEN title ILIKE $${i + 1} THEN 1 ELSE 0 END)`)
+    .join(" + ");
+  const contentHitCases = terms
+    .map((_, i) => `(CASE WHEN content ILIKE $${i + 1} THEN 1 ELSE 0 END)`)
+    .join(" + ");
+  // 至少命中 1 个 term 才入选
+  const whereTerms = terms
+    .map((_, i) => `title ILIKE $${i + 1} OR content ILIKE $${i + 1}`)
+    .join(" OR ");
+  const outlineFilter = outlineOnly ? " AND is_outline = TRUE " : "";
+
+  // 取 3x limit 候选，用子查询/CTE 以避免 PostgreSQL 在 ORDER BY 里引用 SELECT 别名报错（42703）
+  const fetchLimit = limit * 3;
+  const result = await pool.query<{
+    id: string;
+    title: string;
+    content: string;
+    title_hits: number;
+    content_hits: number;
+  }>(
+    `WITH scored_docs AS (
+         SELECT id, title, content, created_at,
+                (${titleHitCases}) AS title_hits,
+                (${contentHitCases}) AS content_hits
+         FROM ai.knowledge_document
+         WHERE (${whereTerms}) ${outlineFilter}
+     )
+     SELECT id, title, content, title_hits, content_hits
+     FROM scored_docs
+     ORDER BY (title_hits * 3 + content_hits) DESC, created_at DESC
+     LIMIT $${terms.length + 1}`,
+    [...likeArgs, fetchLimit]
+  );
+
+  if (result.rows.length === 0) return [];
+
+  // ── 精细打分（同数据库字段 + 整句/短语匹配加成 + 总纲/关键词偏向）───────────
+  const qLower = query.toLowerCase();
+  // 额外抽取"长词项"优先：2 字+的纯中文 term 是核心关键词
+  const coreTerms = terms.filter((t) => /[\u4e00-\u9fa5]{2,}|[a-zA-Z0-9_]{3,}/.test(t));
+  const exactTitleBoost = result.rows.some((r) => r.title.toLowerCase().includes(qLower)) ? 1.5 : 1;
+
+  const scored = result.rows
+    .map((row) => {
+      let score = 0;
+      // 1) 基础命中分：标题权重 3 / 内容权重 1
+      score += row.title_hits * 3;
+      score += row.content_hits * 1;
+
+      // 1a) 降噪：只有"命中核心 term"的候选才进入打分；否则一律视为噪音。
+      //     这是为了避免滑窗产生的 1-2 字泛词（进入/管理/记录等）误把不相关文档拉进来。
+      const titleLower = row.title.toLowerCase();
+      const headLower = row.content.slice(0, 500).toLowerCase();
+      const anyCoreTitle = coreTerms.some((ct) => titleLower.includes(ct));
+      const anyCoreHead = coreTerms.some((ct) => headLower.includes(ct));
+      // 总纲文档放宽：它是索引，必然包含很多泛词。只要 content_hits>0 就保留。
+      // 其他文档：至少 1 个核心 term 命中标题或内容开头，否则直接丢（score=0，后面会过滤）
+      const isOutlineLikely =
+        titleLower.includes("总纲") || titleLower.includes("全景") || titleLower.includes("索引");
+      if (!isOutlineLikely && !anyCoreTitle && !anyCoreHead) score = 0;
+
+      // 2) 核心 term 在标题里命中，每个 +2（用户问"登录"，标题带"登录"的文档必排前）
+      for (const ct of coreTerms) {
+        if (titleLower.includes(ct)) score += 2;
+      }
+
+      // 3) 整句命中在 title：直接 +8（超高分）
+      if (titleLower.includes(qLower)) score += 8;
+
+      // 4) 整句命中在 content 前 400 字：+3（文章开头/概述提及用户查询）
+      if (row.content.slice(0, 400).toLowerCase().includes(qLower)) score += 3;
+
+      // 5) 总纲专属：命中任意核心词在标题/开头就给基础分兜底，保证总纲一定保留
+      if (isOutlineLikely && score < 1.5) score = Math.max(score, 1.5);
+
+      score *= exactTitleBoost;
+      return { row, score };
+    })
+    .filter((x) => x.score > 0); // 最后一步：只保留有真实命中的文档
+
+  scored.sort((a, b) => b.score - a.score);
+
+  // 片段提取：优先找到包含核心 term 的文本段落
+  return scored.slice(0, limit).map(({ row, score }) => ({
+    id: row.id,
+    title: row.title,
+    content: row.content,
+    snippet: extractSnippet(row.content, coreTerms.concat(terms.slice(0, 2))),
+    score
+  }));
+}
+
+/** 从 content 中提取"包含至少一个目标 term"的连续片段，作为 snippet */
+function extractSnippet(content: string, terms: string[]): string {
+  if (!content) return "";
+  const plainTerms = terms.filter((t) => t && t.length >= 1);
+  if (plainTerms.length === 0) {
+    return content.slice(0, 400) + (content.length > 400 ? "..." : "");
+  }
+  const lower = content.toLowerCase();
+  let bestIdx = -1;
+  let bestLen = 0;
+  for (const t of plainTerms) {
+    const idx = lower.indexOf(t.toLowerCase());
+    if (idx !== -1) {
+      // 优先"靠前 + 长 term"的命中
+      const bias = t.length * 50 + Math.max(0, 200 - idx);
+      if (bias > bestLen) {
+        bestIdx = idx;
+        bestLen = bias;
+      }
+    }
+  }
+  if (bestIdx === -1) {
+    return content.slice(0, 400) + (content.length > 400 ? "..." : "");
+  }
+  const start = Math.max(0, bestIdx - 60);
+  const end = Math.min(content.length, start + 340);
+  const prefix = start > 0 ? "..." : "";
+  const suffix = end < content.length ? "..." : "";
+  return prefix + content.slice(start, end) + suffix;
+}
+
 // ── Types ──────────────────────────────────────────────
 
 interface ChatMessage {
@@ -389,7 +731,10 @@ interface KnowledgeRepository {
   initialize(): Promise<void>;
   search(query: string, limit?: number): Promise<KnowledgeSource[]>;
   searchOutline(query: string, limit?: number): Promise<KnowledgeSource[]>;
-  getDocsBySourceFileNames(sourceFileNames: string[]): Promise<KnowledgeSource[]>;
+  getDocsBySourceFileNames(
+    sourceFileNames: string[],
+    queryHint?: string
+  ): Promise<KnowledgeSource[]>;
   listAll(): Promise<KnowledgeDocument[]>;
   create(input: KnowledgeCreateRequest & { createdBy: string }): Promise<KnowledgeDocument>;
   createWithEmbedding(
@@ -422,10 +767,30 @@ interface FaqTemplateRepository {
 class PostgresKnowledgeRepository implements KnowledgeRepository {
   private readonly pool: pg.Pool;
   private readonly embeddingProvider: EmbeddingProvider;
+  // 进程级一次性熔断：一旦 embedding 接口确认不可用（例如 DeepSeek 无 embedding），后续跳过向量检索
+  private _embeddingAvailable: boolean | null = null;
 
   constructor(databaseUrl: string, embeddingProvider?: EmbeddingProvider) {
     this.pool = new pg.Pool({ connectionString: databaseUrl });
     this.embeddingProvider = embeddingProvider ?? createEmbeddingProvider();
+  }
+
+  /** 尝试 embedding；若失败则熔断并返回空数组 */
+  private async tryEmbed(texts: string[]): Promise<number[][]> {
+    if (this._embeddingAvailable === false) return [];
+    try {
+      const res = await this.embeddingProvider.embed(texts);
+      if (res.length && res[0] && res[0].some((v) => v !== 0)) {
+        this._embeddingAvailable = true;
+        return res;
+      }
+      // Noop embedding 全 0：视为"不可用"，直接走关键词
+      this._embeddingAvailable = false;
+      return [];
+    } catch {
+      this._embeddingAvailable = false;
+      return [];
+    }
   }
 
   async initialize(): Promise<void> {
@@ -559,9 +924,11 @@ class PostgresKnowledgeRepository implements KnowledgeRepository {
   }
 
   async search(query: string, limit = 3): Promise<KnowledgeSource[]> {
-    // 1. Try embedding-based semantic search
-    try {
-      const queryEmbeds = await this.embeddingProvider.embed([query]);
+    const hasVector = Boolean((this as Record<string, unknown>)._hasVector);
+
+    // 1. 向量语义检索：仅当 embedding 可用 + pgvector 已安装时尝试
+    if (hasVector) {
+      const queryEmbeds = await this.tryEmbed([query]);
       const queryVec = queryEmbeds[0];
       if (queryVec && queryVec.some((v) => v !== 0)) {
         const vecStr = `[${queryVec.join(",")}]`;
@@ -592,36 +959,17 @@ class PostgresKnowledgeRepository implements KnowledgeRepository {
           }));
         }
       }
-    } catch {
-      // pgvector embedding search unavailable, fall back to ILIKE
     }
 
-    // 2. Fallback to keyword search
-    const result = await this.pool.query<{
-      id: string;
-      title: string;
-      content: string;
-    }>(
-      `SELECT id, title, content FROM ai.knowledge_document
-       WHERE title ILIKE $1 OR content ILIKE $1
-       ORDER BY
-         CASE WHEN title ILIKE $1 THEN 0 ELSE 1 END,
-         created_at DESC
-       LIMIT $2`,
-      [`%${query}%`, limit]
-    );
-
-    return result.rows.map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      content: row.content,
-      snippet: row.content.slice(0, 300) + (row.content.length > 300 ? "..." : "")
-    }));
+    // 2. Fallback: 分词关键词搜索（命中更稳 + 打分更准）
+    return keywordSearchByTerms(this.pool, query, limit, false);
   }
 
   async searchOutline(query: string, limit = 2): Promise<KnowledgeSource[]> {
-    try {
-      const queryEmbeds = await this.embeddingProvider.embed([query]);
+    const hasVector = Boolean((this as Record<string, unknown>)._hasVector);
+
+    if (hasVector) {
+      const queryEmbeds = await this.tryEmbed([query]);
       const queryVec = queryEmbeds[0];
       if (queryVec && queryVec.some((v) => v !== 0)) {
         const vecStr = `[${queryVec.join(",")}]`;
@@ -653,49 +1001,75 @@ class PostgresKnowledgeRepository implements KnowledgeRepository {
           }));
         }
       }
-    } catch {
-      // fall through to keyword
     }
-    const result = await this.pool.query<{
-      id: string;
-      title: string;
-      content: string;
-    }>(
-      `SELECT id, title, content FROM ai.knowledge_document
-       WHERE is_outline = TRUE AND (title ILIKE $1 OR content ILIKE $1)
-       ORDER BY CASE WHEN title ILIKE $1 THEN 0 ELSE 1 END, created_at DESC
-       LIMIT $2`,
-      [`%${query}%`, limit]
-    );
-    return result.rows.map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      content: row.content,
-      snippet: row.content.slice(0, 600) + (row.content.length > 600 ? "..." : "")
-    }));
+
+    // Fallback: 分词关键词搜索（只看总纲文档）
+    return keywordSearchByTerms(this.pool, query, limit, true);
   }
 
-  async getDocsBySourceFileNames(sourceFileNames: string[]): Promise<KnowledgeSource[]> {
+  async getDocsBySourceFileNames(
+    sourceFileNames: string[],
+    queryHint = ""
+  ): Promise<KnowledgeSource[]> {
     if (!sourceFileNames.length) return [];
     const placeholders = sourceFileNames.map((_, i) => `$${i + 1}`).join(",");
+
+    // 若给出 queryHint（用户的原问题），对每篇详细文档按 keyword 匹配度动态打分，
+    // 保证返回顺序是"最贴合用户查询的详细文档排在前面"，而不是按文件名乱序。
+    const terms = tokenizeQuery(queryHint);
+    const coreTerms = terms.filter((t) => /[\u4e00-\u9fa5]{2,}|[a-zA-Z0-9_]{3,}/.test(t));
+    let sql: string;
+    let args: string[];
+
+    if (terms.length > 0) {
+      const titleHitCases = terms
+        .map((_, i) => `(CASE WHEN title ILIKE $${i + 1} THEN 1 ELSE 0 END)`)
+        .join(" + ");
+      const contentHitCases = terms
+        .map((_, i) => `(CASE WHEN content ILIKE $${i + 1} THEN 1 ELSE 0 END)`)
+        .join(" + ");
+      const startIdx = terms.length + 1;
+      const placeholdersWithOffset = sourceFileNames.map((_, i) => `$${startIdx + i}`).join(",");
+      sql = `
+        SELECT id, title, content,
+               (${titleHitCases}) * 5 + (${contentHitCases}) AS raw_score
+        FROM ai.knowledge_document
+        WHERE source_file_name IN (${placeholdersWithOffset})
+        ORDER BY raw_score DESC, title ASC`;
+      args = [...terms.map((t) => `%${t}%`), ...sourceFileNames];
+    } else {
+      sql = `
+        SELECT id, title, content, 0 AS raw_score
+        FROM ai.knowledge_document
+        WHERE source_file_name IN (${placeholders})
+        ORDER BY title ASC`;
+      args = sourceFileNames;
+    }
+
     const result = await this.pool.query<{
       id: string;
       title: string;
       content: string;
-      source_file_name: string;
-    }>(
-      `SELECT id, title, content, source_file_name
-       FROM ai.knowledge_document
-       WHERE source_file_name IN (${placeholders})
-       ORDER BY source_file_name ASC`,
-      sourceFileNames
-    );
-    return result.rows.map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      content: row.content,
-      snippet: row.content.slice(0, 500) + (row.content.length > 500 ? "..." : "")
-    }));
+      raw_score: number;
+    }>(sql, args);
+
+    const qLower = queryHint.toLowerCase();
+    return result.rows.map((row: any) => {
+      let score = Number(row.raw_score) || 0;
+      // 详细文档打分：标题含核心 term 给 +3（超高分），整句匹配标题再加 +5
+      for (const ct of coreTerms) if (row.title.toLowerCase().includes(ct)) score += 3;
+      if (qLower && row.title.toLowerCase().includes(qLower)) score += 5;
+      if (qLower && row.content.slice(0, 400).toLowerCase().includes(qLower)) score += 2;
+      // 归一化：让详细文档的分数与总纲/全库搜索的 score 处于同一数量级（0-10+）
+      const normalizedScore = Math.max(0, Math.min(score, 100)) / 10;
+      return {
+        id: row.id,
+        title: row.title,
+        content: row.content,
+        snippet: row.content.slice(0, 500) + (row.content.length > 500 ? "..." : ""),
+        score: Number.isFinite(normalizedScore) ? normalizedScore : 0
+      };
+    });
   }
 
   async listAll(): Promise<KnowledgeDocument[]> {
@@ -1032,11 +1406,26 @@ function buildActorContext(actor: Actor): string {
 }
 
 // 简单问题直通判定：问候/确认/致谢/表情/极短无意义内容 -> 不需要知识库
-const TRIVIAL_QUESTION_PATTERNS = [
-  /^(你好|您好|hi|hello|在吗|在不在|早上好|下午好|晚上好|晚安|谢谢|感谢|多谢|好的|ok|收到|明白|再见|拜拜)+$/i,
-  /^[\u{1F300}-\u{1FAFF}\s]+$/u
+const TRIVIAL_QUESTION_PATTERNS: RegExp[] = [
+  // 问候 & 确认 & 致谢（含重叠，如"好的好的"、"谢谢谢谢"）
+  new RegExp(
+    "^(你好|您好|hi|hello|hey|heyya|哈喽|嗨|在吗|在不在|在不|人呢|在么|" +
+      "早上好|上午好|中午好|下午好|晚上好|晚安|午安|" +
+      "谢谢|感谢|多谢|thx|thanks|" +
+      "好的|好滴|好哒|好啊|行|行吧|可以|嗯|嗯嗯|哦哦|噢|奥|" +
+      "收到|明白了|知道了|懂了|了解|ok|okay|ye|yeah|yep|nope|no|" +
+      "再见|拜拜|bai|下次见|回见|" +
+      "对|对的|是的|是|没错|" +
+      "不|不用|不需要|不用了|算了|没事|没|" +
+      "请讲|请说|请问|说说|说)+$",
+    "iu"
+  ),
+  // 纯表情
+  /^[\u{1F300}-\u{1FAFF}\s]+$/u,
+  // 标点 + 表情 + 语气词（"你好！！" "哈哈" "嘿嘿"）
+  new RegExp("^(哈哈|哈哈哈|嘿嘿|呵呵|嘻嘻|笑死|狗头|" + "[！!？?。.，,、~～…\\- ]+)+$", "u")
 ];
-const MAX_TRIVIAL_LENGTH = 8;
+const MAX_TRIVIAL_LENGTH = 12; // 放宽到 12：覆盖"好的谢谢"、"你好请问"这类组合但仍属问候型
 
 function isTrivialQuestion(message: string): boolean {
   const m = message.trim();
@@ -1086,15 +1475,30 @@ async function retrieveKnowledgeHierarchical(
     for (const f of extractReferencedDocFileNames(hit.snippet ?? "")) referencedFileNames.add(f);
   }
 
-  // Stage 3: 按文件名批量取详细文档全文（不是再次 embedding 搜索，保证 SOP 零丢失）
+  // Stage 3: 按文件名批量取详细文档全文，并按 queryHint 重打分排序
   const detailDocs: KnowledgeSource[] = referencedFileNames.size
-    ? await repo.getDocsBySourceFileNames(Array.from(referencedFileNames))
+    ? await repo.getDocsBySourceFileNames(Array.from(referencedFileNames), trimmed)
     : [];
 
-  // 组装：总纲在前，详细文档在后。详细文档控制数量，避免爆 token（最多取 6 篇）
+  // 合并并按 score 降序：详细业务文档（登录/公告/耗材/成员等）通常命中更高，排前面；
+  // 总纲（索引）是"目录参考"，分数乘以 0.75 略压低，保证真正的操作指南（标题精准命中）总能排到总纲前面。
+  const OUTLINE_DISCOUNT = 0.75;
   const MAX_DETAIL_DOCS = 6;
   const limitedDetails = detailDocs.slice(0, MAX_DETAIL_DOCS);
-  return [...outlineHits, ...limitedDetails];
+  const isOutlineTitle = (t: string) => /总纲|全景|索引/.test(t);
+  const merged: KnowledgeSource[] = [
+    ...outlineHits.map((o) => ({
+      ...o,
+      score: Math.max(0.2, (o.score ?? 0) * OUTLINE_DISCOUNT)
+    })),
+    ...limitedDetails
+  ];
+  merged.sort((a, b) => {
+    const dA = isOutlineTitle(a.title) ? -0.1 : 0;
+    const dB = isOutlineTitle(b.title) ? -0.1 : 0;
+    return (b.score ?? 0) + dB - ((a.score ?? 0) + dA);
+  });
+  return merged;
 }
 
 function buildPromptForMode(
@@ -1570,6 +1974,11 @@ export const aiPlugin: PluginManifest = {
 
               // 1. 分层知识库检索：简单问题直通 → 先总纲 → 按需取详细文档全文
               const sources = await retrieveKnowledgeHierarchical(knowledgeRepo, request.message);
+              context.logger.info("ai.chat.retrieval", {
+                message: request.message,
+                sourcesCount: sources.length,
+                sources: sources.map((s) => ({ title: s.title, score: s.score }))
+              });
               const referencedTitles = extractTitlesFromSources(sources);
 
               // 2. Get chat history (use passed history from frontend + DB history)

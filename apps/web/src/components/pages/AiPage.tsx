@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
+import { MarkdownView } from "../shared/MarkdownView";
 import type {
   Actor,
   ChatMessage,
@@ -391,7 +392,9 @@ export function AiPage({
                       <span>{doc.sourceFileName ?? "无源文件"}</span>
                       <span>{doc.sourceMimeType ?? "text/plain"}</span>
                     </div>
-                    <p>{doc.content}</p>
+                    <div className="knowledge-content">
+                      <MarkdownView content={doc.content} />
+                    </div>
                     <button
                       type="button"
                       className="tertiary-button"
