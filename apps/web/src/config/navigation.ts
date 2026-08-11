@@ -7,7 +7,8 @@ export type AppView =
   | "files"
   | "meetings"
   | "ai"
-  | "accounts";
+  | "profile"
+  | "admin";
 
 export interface NavItem {
   id: AppView;
@@ -67,10 +68,18 @@ export const navItems: NavItem[] = [
     children: ["对话工作台", "项目上下文", "引用来源", "对话历史"]
   },
   {
-    id: "accounts",
-    label: "管理中心",
+    id: "profile",
+    label: "个人设置",
     icon: "◎",
     roles: ["lab_admin", "professor", "student"],
     children: ["个人资料", "密码与安全"]
+  },
+  {
+    id: "admin",
+    label: "管理中心",
+    icon: "⚙",
+    roles: ["lab_admin"],
+    permission: "user:write",
+    children: ["成员目录", "角色管理", "密码重置", "账号停用"]
   }
 ];

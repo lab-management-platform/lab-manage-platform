@@ -66,6 +66,12 @@ export function roleText(role: Role): string {
   return map[role];
 }
 
+export function normalizeRole(role: Role): "student" | "professor" | "lab_admin" {
+  if (role === "member") return "student";
+  if (role === "admin" || role === "super_admin") return "lab_admin";
+  return role;
+}
+
 export function identityTypeText(identityType: IdentityType): string {
   return identityType === "student_no" ? "学号" : "工号";
 }
@@ -137,6 +143,24 @@ export function notificationTypeText(type: NotificationType): string {
     system: "系统"
   };
   return map[type];
+}
+
+export function stripMarkdown(text: string, maxLength = 240): string {
+  const cleaned = text
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^>\s?/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/---+/g, "")
+    .replace(/\n{3,}/g, "\n")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (cleaned.length <= maxLength) return cleaned;
+  return cleaned.slice(0, maxLength) + "…";
 }
 
 export function formatFileSize(sizeBytes?: number) {
