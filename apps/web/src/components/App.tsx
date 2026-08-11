@@ -232,180 +232,180 @@ export function App() {
   return (
     <main className="app-frame">
       <ErrorBoundary>
-      {lab.message ? (
-        <div className="toast-layer" aria-live="polite">
-          <div className="floating-toast">{lab.message}</div>
-        </div>
-      ) : null}
+        {lab.message ? (
+          <div className="toast-layer" aria-live="polite">
+            <div className="floating-toast">{lab.message}</div>
+          </div>
+        ) : null}
 
-      <Sidebar
-        actor={actor}
-        activeView={activeView}
-        onNavigate={openView}
-        onToggleMobileNav={() => setMobileNavOpen((current) => !current)}
-        mobileNavOpen={mobileNavOpen}
-      />
-
-      <section className="workspace-shell">
-        <Topbar
+        <Sidebar
           actor={actor}
-          projects={lab.projects}
-          selectedProjectId={selectedProjectId}
-          unreadCount={lab.unreadNotifications.length}
-          onOpenView={openView}
-          onSelectProject={(projectId) => void selectProject(projectId)}
-          onOpenProjectDetail={selectedProjectId ? () => openView("projects") : undefined}
-          onLogout={logout}
+          activeView={activeView}
+          onNavigate={openView}
+          onToggleMobileNav={() => setMobileNavOpen((current) => !current)}
+          mobileNavOpen={mobileNavOpen}
         />
 
-        <div className="workspace-body">
-          {lab.loading ? (
-            <div className="loading-bar" aria-live="polite">
-              数据加载中…
-            </div>
-          ) : null}
+        <section className="workspace-shell">
+          <Topbar
+            actor={actor}
+            projects={lab.projects}
+            selectedProjectId={selectedProjectId}
+            unreadCount={lab.unreadNotifications.length}
+            onOpenView={openView}
+            onSelectProject={(projectId) => void selectProject(projectId)}
+            onOpenProjectDetail={selectedProjectId ? () => openView("projects") : undefined}
+            onLogout={logout}
+          />
 
-          {activeView === "dashboard" ? (
-            <DashboardPage
-              actor={actor}
-              actorName={actor.displayName}
-              summary={lab.summary}
-              projects={lab.projects}
-              tasks={lab.projectTasks}
-              materials={lab.materials}
-              applications={lab.applications}
-              notifications={lab.notifications}
-              dashboard={lab.dashboard}
-              onOpenView={openView}
-              onSelectProject={(projectId) => void selectProject(projectId, "projects")}
-            />
-          ) : null}
+          <div className="workspace-body">
+            {lab.loading ? (
+              <div className="loading-bar" aria-live="polite">
+                数据加载中…
+              </div>
+            ) : null}
 
-          {activeView === "projects" ? (
-            <ProjectsPage
-              actor={actor}
-              projects={lab.projects}
-              selectedProjectId={selectedProjectId}
-              onSelectProject={(projectId) => void selectProject(projectId)}
-              tasks={lab.projectTasks}
-              projectNotes={lab.projectNotes}
-              progressReports={lab.progressReports}
-              projectTree={lab.projectTree}
-              projectTreeSnapshots={lab.projectTreeSnapshots}
-              members={lab.projectMembers}
-              users={lab.users}
-              onCreateProject={lab.createProject}
-              onApproveProject={lab.approveProject}
-              onCreateTask={lab.createTask}
-              onCompleteTask={lab.completeTask}
-              onAddProjectMember={lab.addProjectMember}
-              onUpdateProjectMember={lab.updateProjectMember}
-              onRemoveProjectMember={lab.removeProjectMember}
-              onCreateProjectNote={lab.createProjectNote}
-              onUpdateProjectNote={lab.updateProjectNote}
-              onDeleteProjectNote={lab.deleteProjectNote}
-              onSaveProjectTree={lab.saveProjectTree}
-              onCreateProjectTreeSnapshot={lab.createProjectTreeSnapshot}
-              onCreateProjectReport={lab.createProjectReport}
-              onLoadProjectReportDetail={lab.loadProjectReportDetail}
-              projectReportDetail={lab.projectReportDetail}
-            />
-          ) : null}
+            {activeView === "dashboard" ? (
+              <DashboardPage
+                actor={actor}
+                actorName={actor.displayName}
+                summary={lab.summary}
+                projects={lab.projects}
+                tasks={lab.projectTasks}
+                materials={lab.materials}
+                applications={lab.applications}
+                notifications={lab.notifications}
+                dashboard={lab.dashboard}
+                onOpenView={openView}
+                onSelectProject={(projectId) => void selectProject(projectId, "projects")}
+              />
+            ) : null}
 
-          {activeView === "inventory" ? (
-            <InventoryPage
-              actor={actor}
-              summary={lab.summary}
-              categories={lab.inventoryCategories}
-              materials={lab.materials}
-              applications={lab.applications}
-              stockMovements={lab.stockMovements}
-              loans={lab.loans}
-              projects={lab.projects}
-              selectedProjectId={selectedProjectId}
-              onSubmitApplication={lab.submitApplication}
-              onStockIn={lab.stockIn}
-              onReturnLoan={lab.returnLoan}
-              onCreateCategory={lab.createInventoryCategory}
-              onReviewApplication={lab.reviewApplication}
-            />
-          ) : null}
+            {activeView === "projects" ? (
+              <ProjectsPage
+                actor={actor}
+                projects={lab.projects}
+                selectedProjectId={selectedProjectId}
+                onSelectProject={(projectId) => void selectProject(projectId)}
+                tasks={lab.projectTasks}
+                projectNotes={lab.projectNotes}
+                progressReports={lab.progressReports}
+                projectTree={lab.projectTree}
+                projectTreeSnapshots={lab.projectTreeSnapshots}
+                members={lab.projectMembers}
+                users={lab.users}
+                onCreateProject={lab.createProject}
+                onApproveProject={lab.approveProject}
+                onCreateTask={lab.createTask}
+                onCompleteTask={lab.completeTask}
+                onAddProjectMember={lab.addProjectMember}
+                onUpdateProjectMember={lab.updateProjectMember}
+                onRemoveProjectMember={lab.removeProjectMember}
+                onCreateProjectNote={lab.createProjectNote}
+                onUpdateProjectNote={lab.updateProjectNote}
+                onDeleteProjectNote={lab.deleteProjectNote}
+                onSaveProjectTree={lab.saveProjectTree}
+                onCreateProjectTreeSnapshot={lab.createProjectTreeSnapshot}
+                onCreateProjectReport={lab.createProjectReport}
+                onLoadProjectReportDetail={lab.loadProjectReportDetail}
+                projectReportDetail={lab.projectReportDetail}
+              />
+            ) : null}
 
-          {activeView === "files" ? (
-            <FilesPage
-              actor={actor}
-              projects={lab.projects}
-              selectedProjectId={selectedProjectId}
-              files={lab.files}
-              versions={lab.fileVersions}
-              onSelectFile={lab.loadFileVersions}
-              onCreateProjectFile={lab.createProjectFile}
-              onAddFileVersion={lab.addFileVersion}
-            />
-          ) : null}
+            {activeView === "inventory" ? (
+              <InventoryPage
+                actor={actor}
+                summary={lab.summary}
+                categories={lab.inventoryCategories}
+                materials={lab.materials}
+                applications={lab.applications}
+                stockMovements={lab.stockMovements}
+                loans={lab.loans}
+                projects={lab.projects}
+                selectedProjectId={selectedProjectId}
+                onSubmitApplication={lab.submitApplication}
+                onStockIn={lab.stockIn}
+                onReturnLoan={lab.returnLoan}
+                onCreateCategory={lab.createInventoryCategory}
+                onReviewApplication={lab.reviewApplication}
+              />
+            ) : null}
 
-          {activeView === "meetings" ? (
-            <MeetingsPage
-              actor={actor}
-              projects={lab.projects}
-              selectedProjectId={selectedProjectId}
-              meetings={lab.meetings}
-              meetingAttendance={lab.meetingAttendance}
-              notifications={lab.notifications}
-              onCreateMeeting={lab.createMeeting}
-              onUpdateMeetingMinutes={lab.updateMeetingMinutes}
-              onUpdateMeetingAttendance={lab.updateMeetingAttendance}
-              onPublishAnnouncement={lab.publishAnnouncement}
-              onMarkNotificationRead={lab.markNotificationRead}
-            />
-          ) : null}
+            {activeView === "files" ? (
+              <FilesPage
+                actor={actor}
+                projects={lab.projects}
+                selectedProjectId={selectedProjectId}
+                files={lab.files}
+                versions={lab.fileVersions}
+                onSelectFile={lab.loadFileVersions}
+                onCreateProjectFile={lab.createProjectFile}
+                onAddFileVersion={lab.addFileVersion}
+              />
+            ) : null}
 
-          {activeView === "ai" ? (
-            <AiPage
-              actor={actor}
-              messages={lab.aiMessages}
-              loading={lab.aiLoading}
-              error={lab.aiError}
-              sources={lab.aiSources}
-              knowledgeDocs={lab.knowledgeDocs}
-              faqTemplates={lab.faqTemplates}
-              onSendMessage={lab.sendAiMessage}
-              onClearHistory={lab.clearAiHistory}
-              onCreateKnowledge={lab.createKnowledge}
-              onUploadKnowledgeFile={lab.uploadKnowledgeFile}
-              onDeleteKnowledge={lab.deleteKnowledge}
-            />
-          ) : null}
+            {activeView === "meetings" ? (
+              <MeetingsPage
+                actor={actor}
+                projects={lab.projects}
+                selectedProjectId={selectedProjectId}
+                meetings={lab.meetings}
+                meetingAttendance={lab.meetingAttendance}
+                notifications={lab.notifications}
+                onCreateMeeting={lab.createMeeting}
+                onUpdateMeetingMinutes={lab.updateMeetingMinutes}
+                onUpdateMeetingAttendance={lab.updateMeetingAttendance}
+                onPublishAnnouncement={lab.publishAnnouncement}
+                onMarkNotificationRead={lab.markNotificationRead}
+              />
+            ) : null}
 
-          {activeView === "profile" || activeView === "admin" ? (
-            <AccountsPage
-              actor={actor}
-              profile={lab.profile}
-              users={lab.users}
-              onUpdateContact={lab.updateContact}
-              onChangePassword={lab.changePassword}
-              onRegisterUser={lab.registerUser}
-              onResetUserPassword={lab.resetUserPassword}
-              onUpdateUserRole={lab.updateUserRole}
-              onDeleteUser={lab.deleteUser}
-            />
-          ) : null}
+            {activeView === "ai" ? (
+              <AiPage
+                actor={actor}
+                messages={lab.aiMessages}
+                loading={lab.aiLoading}
+                error={lab.aiError}
+                sources={lab.aiSources}
+                knowledgeDocs={lab.knowledgeDocs}
+                faqTemplates={lab.faqTemplates}
+                onSendMessage={lab.sendAiMessage}
+                onClearHistory={lab.clearAiHistory}
+                onCreateKnowledge={lab.createKnowledge}
+                onUploadKnowledgeFile={lab.uploadKnowledgeFile}
+                onDeleteKnowledge={lab.deleteKnowledge}
+              />
+            ) : null}
 
-          {activeView === "dashboard" ||
-          activeView === "projects" ||
-          activeView === "inventory" ||
-          activeView === "files" ||
-          activeView === "meetings" ||
-          activeView === "ai" ||
-          activeView === "profile" ||
-          activeView === "admin" ? null : (
-            <div className="empty-state">
-              <h2>页面不存在</h2>
-              <p>找不到该页面,请通过侧边栏导航切换。</p>
-            </div>
-          )}
-        </div>
-      </section>
+            {activeView === "profile" || activeView === "admin" ? (
+              <AccountsPage
+                actor={actor}
+                profile={lab.profile}
+                users={lab.users}
+                onUpdateContact={lab.updateContact}
+                onChangePassword={lab.changePassword}
+                onRegisterUser={lab.registerUser}
+                onResetUserPassword={lab.resetUserPassword}
+                onUpdateUserRole={lab.updateUserRole}
+                onDeleteUser={lab.deleteUser}
+              />
+            ) : null}
+
+            {activeView === "dashboard" ||
+            activeView === "projects" ||
+            activeView === "inventory" ||
+            activeView === "files" ||
+            activeView === "meetings" ||
+            activeView === "ai" ||
+            activeView === "profile" ||
+            activeView === "admin" ? null : (
+              <div className="empty-state">
+                <h2>页面不存在</h2>
+                <p>找不到该页面,请通过侧边栏导航切换。</p>
+              </div>
+            )}
+          </div>
+        </section>
       </ErrorBoundary>
     </main>
   );
