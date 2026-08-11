@@ -189,35 +189,46 @@ export function useLabData(
     }
 
     const headers = toAuthorization(token);
-    const [tasksData, membersData, notesData, progressData, treeData, treeHistoryData] =
-      await Promise.all([
-        fetch(`${apiBase}/projects/${projectId}/tasks`, { headers }).then(
-          parseResponse<ProjectTask[]>
-        ),
-        fetch(`${apiBase}/projects/${projectId}/members`, { headers }).then(
-          parseResponse<ProjectMember[]>
-        ),
-        fetch(`${apiBase}/projects/${projectId}/notes`, { headers }).then(
-          parseResponse<ProjectNote[]>
-        ),
-        fetch(`${apiBase}/projects/${projectId}/progress`, { headers }).then(
-          parseResponse<ProgressReport[]>
-        ),
-        fetch(`${apiBase}/projects/${projectId}/tree`, { headers }).then(
-          parseResponse<ProjectTreeNode[]>
-        ),
-        fetch(`${apiBase}/projects/${projectId}/tree/history`, { headers }).then(
-          parseResponse<ProjectTreeSnapshot[]>
-        )
-      ]);
+    try {
+      const [tasksData, membersData, notesData, progressData, treeData, treeHistoryData] =
+        await Promise.all([
+          fetch(`${apiBase}/projects/${projectId}/tasks`, { headers }).then(
+            parseResponse<ProjectTask[]>
+          ),
+          fetch(`${apiBase}/projects/${projectId}/members`, { headers }).then(
+            parseResponse<ProjectMember[]>
+          ),
+          fetch(`${apiBase}/projects/${projectId}/notes`, { headers }).then(
+            parseResponse<ProjectNote[]>
+          ),
+          fetch(`${apiBase}/projects/${projectId}/progress`, { headers }).then(
+            parseResponse<ProgressReport[]>
+          ),
+          fetch(`${apiBase}/projects/${projectId}/tree`, { headers }).then(
+            parseResponse<ProjectTreeNode[]>
+          ),
+          fetch(`${apiBase}/projects/${projectId}/tree/history`, { headers }).then(
+            parseResponse<ProjectTreeSnapshot[]>
+          )
+        ]);
 
-    setProjectTasks(tasksData);
-    setProjectMembers(membersData);
-    setProjectNotes(notesData);
-    setProgressReports(progressData);
-    setProjectTree(treeData);
-    setProjectTreeSnapshots(treeHistoryData);
-    setProjectReportDetail(null);
+      setProjectTasks(tasksData);
+      setProjectMembers(membersData);
+      setProjectNotes(notesData);
+      setProgressReports(progressData);
+      setProjectTree(treeData);
+      setProjectTreeSnapshots(treeHistoryData);
+      setProjectReportDetail(null);
+    } catch (error) {
+      setProjectTasks([]);
+      setProjectMembers([]);
+      setProjectNotes([]);
+      setProgressReports([]);
+      setProjectTree([]);
+      setProjectTreeSnapshots([]);
+      setProjectReportDetail(null);
+      throw error;
+    }
   }
 
   useEffect(() => {
@@ -243,6 +254,10 @@ export function useLabData(
     };
     const eventSource = new EventSource(`${apiBase}/events?token=${encodeURIComponent(token)}`);
     eventSource.addEventListener("domain-event", refresh);
+    eventSource.addEventListener("error", () => {
+      if (eventSource.readyState === EventSource.CLOSED) return;
+      eventSource.close();
+    });
     const timer = window.setInterval(refresh, 45000);
     return () => {
       eventSource.close();

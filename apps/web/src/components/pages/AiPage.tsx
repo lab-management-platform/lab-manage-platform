@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
+import { stripMarkdown } from "../../utils/helpers";
 import type {
   Actor,
   ChatMessage,
@@ -380,9 +381,9 @@ export function AiPage({
                 knowledgeDocs.map((doc) => (
                   <article key={doc.id} className="knowledge-card">
                     <div className="row-inline spread">
-                      <div>
+                      <div className="doc-title-row">
                         <strong>{doc.title}</strong>
-                        <small>{doc.category}</small>
+                        {doc.category ? <small>&nbsp;·&nbsp;{doc.category}</small> : null}
                       </div>
                       <StatusBadge tone="muted">{doc.tags.join(" / ") || "未标记"}</StatusBadge>
                     </div>
@@ -391,7 +392,7 @@ export function AiPage({
                       <span>{doc.sourceFileName ?? "无源文件"}</span>
                       <span>{doc.sourceMimeType ?? "text/plain"}</span>
                     </div>
-                    <p>{doc.content}</p>
+                    <p>{stripMarkdown(doc.content, 240)}</p>
                     <button
                       type="button"
                       className="tertiary-button"

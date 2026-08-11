@@ -5,6 +5,7 @@ export function OidcLogin() {
   const [loading, setLoading] = useState(false);
   async function login() {
     setLoading(true);
+    sessionStorage.setItem("oidc_redirect_hash", window.location.hash);
     await oidcManager.signinRedirect();
   }
 
