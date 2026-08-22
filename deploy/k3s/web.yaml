@@ -16,7 +16,7 @@ kind: Deployment
 metadata:
   name: web
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: web
@@ -30,6 +30,7 @@ spec:
       containers:
         - name: web
           image: lab-web
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
           readinessProbe:

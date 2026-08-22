@@ -14,7 +14,7 @@ kind: Deployment
 metadata:
   name: api
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: api
@@ -28,6 +28,7 @@ spec:
       containers:
         - name: api
           image: lab-api
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
           envFrom:
