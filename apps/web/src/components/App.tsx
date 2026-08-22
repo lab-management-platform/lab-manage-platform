@@ -91,14 +91,13 @@ export function App() {
     })();
   }, []);
 
-  async function login(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function loginWithCredentials(loginUsername: string, loginPassword: string) {
     setAuthLoading(true);
     try {
       const response = await fetch(`${apiBase}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: loginUsername, password: loginPassword })
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -115,6 +114,11 @@ export function App() {
     } finally {
       setAuthLoading(false);
     }
+  }
+
+  async function login(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await loginWithCredentials(username, password);
   }
 
   async function resetPassword(event: SyntheticEvent<HTMLFormElement>) {
@@ -137,7 +141,7 @@ export function App() {
   }
 
   if (!actor) {
-    if (oidcEnabled) return <OidcLogin />;
+    if (oidcEnabled) return <OidcLogin onLocalLogin={loginWithCredentials} />;
     return (
       <LoginForm
         username={username}
@@ -233,6 +237,7 @@ export function App() {
               projectTreeSnapshots={lab.projectTreeSnapshots}
               members={lab.projectMembers}
               users={lab.users}
+              pendingRegistrations={lab.pendingRegistrations}
               onCreateProject={lab.createProject}
               onApproveProject={lab.approveProject}
               onCreateTask={lab.createTask}
@@ -320,9 +325,11 @@ export function App() {
               actor={actor}
               profile={lab.profile}
               users={lab.users}
+              pendingRegistrations={lab.pendingRegistrations}
               onUpdateContact={lab.updateContact}
               onChangePassword={lab.changePassword}
               onRegisterUser={lab.registerUser}
+              onReviewRegistration={lab.reviewRegistration}
               onResetUserPassword={lab.resetUserPassword}
               onUpdateUserRole={lab.updateUserRole}
               onDeleteUser={lab.deleteUser}

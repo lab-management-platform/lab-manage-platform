@@ -35,6 +35,54 @@ export async function createApiApp() {
     return session;
   });
 
+  // 个人注册不直接创建可登录账号，必须经过管理员审核。
+  app.post("/auth/registration", async (request, reply) => {
+    const body = request.body as Partial<{
+      username: string;
+      password: string;
+      identityType: "student_no" | "employee_no";
+      identityNo: string;
+      displayName: string;
+      phone: string;
+      reason: string;
+    }>;
+    if (
+      !body.username ||
+      !body.password ||
+      !body.identityType ||
+      !body.identityNo ||
+      !body.displayName
+    ) {
+      return reply.code(400).send({
+        error: "username, password, identityType, identityNo and displayName are required"
+      });
+    }
+    if (!kernel.auth.submitRegistration) {
+      return reply
+        .code(409)
+        .send({ error: "public registration is unavailable in the current authentication mode" });
+    }
+    try {
+      const result = await kernel.auth.submitRegistration({
+        username: body.username,
+        password: body.password,
+        identityType: body.identityType,
+        identityNo: body.identityNo,
+        displayName: body.displayName,
+        phone: body.phone,
+        reason: body.reason
+      });
+      return reply.code(202).send({
+        ...result,
+        message: "注册申请已提交，请等待管理员审核。"
+      });
+    } catch (error) {
+      return reply
+        .code(error instanceof Error && error.message.includes("exists") ? 409 : 400)
+        .send({ error: error instanceof Error ? error.message : "registration request failed" });
+    }
+  });
+
   app.get("/auth/me", async (request, reply) => {
     const authorization = Array.isArray(request.headers.authorization)
       ? request.headers.authorization[0]
@@ -201,6 +249,52 @@ export async function createApiApp() {
 
     const query = request.query as Partial<{ search: string; includeInactive: string }>;
     return kernel.listUsers(query.search, query.includeInactive === "true");
+  });
+
+  app.get("/auth/registrations/pending", async (request, reply) => {
+    const authorization = Array.isArray(request.headers.authorization)
+      ? request.headers.authorization[0]
+      : request.headers.authorization;
+    const actor = await kernel.authenticate(authorization ?? "");
+    if (!actor) return reply.code(401).send({ error: "Unauthorized" });
+    try {
+      kernel.assertPermission(actor, "user:write");
+    } catch {
+      return reply.code(403).send({ error: "Permission denied: user:write" });
+    }
+    if (!kernel.auth.listPendingRegistrations) return reply.send([]);
+    return kernel.auth.listPendingRegistrations();
+  });
+
+  app.patch("/auth/registrations/:id", async (request, reply) => {
+    const authorization = Array.isArray(request.headers.authorization)
+      ? request.headers.authorization[0]
+      : request.headers.authorization;
+    const actor = await kernel.authenticate(authorization ?? "");
+    if (!actor) return reply.code(401).send({ error: "Unauthorized" });
+    try {
+      kernel.assertPermission(actor, "user:write");
+    } catch {
+      return reply.code(403).send({ error: "Permission denied: user:write" });
+    }
+    if (!kernel.auth.reviewRegistration)
+      return reply.code(409).send({ error: "registration review is unavailable" });
+    const body = request.body as Partial<{ action: "approve" | "reject"; remark: string }>;
+    if (!body.action || !["approve", "reject"].includes(body.action)) {
+      return reply.code(400).send({ error: "action must be approve or reject" });
+    }
+    try {
+      return await kernel.auth.reviewRegistration(
+        (request.params as { id: string }).id,
+        body.action,
+        actor.id,
+        body.remark
+      );
+    } catch (error) {
+      return reply
+        .code(error instanceof Error && error.message.includes("not found") ? 404 : 400)
+        .send({ error: error instanceof Error ? error.message : "registration review failed" });
+    }
   });
 
   app.post("/auth/register", async (request, reply) => {

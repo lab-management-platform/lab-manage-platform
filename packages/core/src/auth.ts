@@ -6,6 +6,8 @@ import type {
   IdentityType,
   LocalUserRegistrationRequest,
   ManagedUser,
+  PublicRegistrationRequest,
+  ApprovalStatus,
   Permission,
   Role
 } from "./contracts.js";
@@ -217,6 +219,14 @@ function validateLocalRegistration(request: LocalUserRegistrationRequest): void 
   }
 }
 
+function validatePublicRegistration(request: PublicRegistrationRequest): void {
+  validateLocalRegistration({ ...request, role: "student" });
+  if (request.phone) validatePhone(request.phone);
+  if (request.reason && request.reason.length > 500) {
+    throw new Error("reason must be at most 500 characters");
+  }
+}
+
 function validatePhone(phone: string): void {
   if (!phonePattern.test(phone)) {
     throw new Error("phone must be a valid mainland China mobile number");
@@ -234,6 +244,7 @@ function toManagedUser(user: DemoUser): ManagedUser {
     role: user.role,
     identityProvider: "local",
     active: true,
+    approvalStatus: "approved",
     createdAt: new Date().toISOString()
   };
 }
@@ -278,6 +289,39 @@ export class DemoAuthAdapter implements AuthPort {
     };
     this.users.push(user);
     return toActor(user);
+  }
+
+  async submitRegistration(
+    request: PublicRegistrationRequest
+  ): Promise<{ id: string; status: ApprovalStatus }> {
+    validatePublicRegistration(request);
+    if (
+      this.users.some(
+        (user) => user.username === request.username || user.identityNo === request.identityNo
+      )
+    ) {
+      throw new Error("username or identityNo already exists");
+    }
+    const user: DemoUser = {
+      id: `u-${request.username}`,
+      username: request.username,
+      identityType: request.identityType,
+      identityNo: request.identityNo,
+      phone: request.phone,
+      displayName: request.displayName,
+      role: "student",
+      passwordHash: hashPassword(request.password)
+    };
+    this.users.push(user);
+    return { id: user.id, status: "pending" };
+  }
+
+  async listPendingRegistrations(): Promise<ManagedUser[]> {
+    return [];
+  }
+
+  async reviewRegistration(): Promise<ManagedUser> {
+    throw new Error("registration review is unavailable in demo mode");
   }
 
   async listUsers(search = "", includeInactive = false): Promise<ManagedUser[]> {
@@ -420,6 +464,12 @@ export class PostgresAuthAdapter implements AuthPort {
         identity_provider TEXT NOT NULL DEFAULT 'local',
         external_subject TEXT,
         active BOOLEAN NOT NULL DEFAULT true,
+        approval_status TEXT NOT NULL DEFAULT 'approved'
+          CHECK (approval_status IN ('pending', 'approved', 'rejected')),
+        approval_requested_at TIMESTAMPTZ,
+        approved_at TIMESTAMPTZ,
+        approved_by TEXT,
+        rejection_reason TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
 
@@ -429,6 +479,11 @@ export class PostgresAuthAdapter implements AuthPort {
       ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS identity_no TEXT UNIQUE;
       ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS identity_provider TEXT NOT NULL DEFAULT 'local';
       ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS external_subject TEXT;
+      ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'approved';
+      ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS approval_requested_at TIMESTAMPTZ;
+      ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+      ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS approved_by TEXT;
+      ALTER TABLE core.app_user ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 
       UPDATE core.app_user
       SET identity_type = CASE
@@ -454,6 +509,9 @@ export class PostgresAuthAdapter implements AuthPort {
       UPDATE core.app_user SET role = 'student' WHERE role = 'member';
       ALTER TABLE core.app_user ADD CONSTRAINT app_user_role_check
         CHECK (role IN ('student', 'professor', 'lab_admin'));
+      ALTER TABLE core.app_user DROP CONSTRAINT IF EXISTS app_user_approval_status_check;
+      ALTER TABLE core.app_user ADD CONSTRAINT app_user_approval_status_check
+        CHECK (approval_status IN ('pending', 'approved', 'rejected'));
 
       CREATE TABLE IF NOT EXISTS core.session (
         token TEXT PRIMARY KEY,
@@ -511,7 +569,8 @@ export class PostgresAuthAdapter implements AuthPort {
     }>(
       `SELECT id, username, display_name, role, password_hash
        FROM core.app_user
-       WHERE active = true
+      WHERE active = true
+         AND approval_status = 'approved'
          AND (username = $1 OR identity_no = $1 OR student_id = $1 OR phone = $1)`,
       [username]
     );
@@ -580,6 +639,41 @@ export class PostgresAuthAdapter implements AuthPort {
     }
   }
 
+  async submitRegistration(
+    request: PublicRegistrationRequest
+  ): Promise<{ id: string; status: ApprovalStatus }> {
+    validatePublicRegistration(request);
+    try {
+      const result = await this.pool.query<{ id: string; approval_status: ApprovalStatus }>(
+        `INSERT INTO core.app_user
+          (id, username, identity_type, identity_no, phone, password_hash, display_name, role,
+           identity_provider, active, approval_status, approval_requested_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'student', 'local', false, 'pending', now())
+         RETURNING id, approval_status`,
+        [
+          `u-${randomUUID()}`,
+          request.username.trim(),
+          request.identityType,
+          request.identityNo.trim(),
+          request.phone ?? null,
+          hashPassword(request.password),
+          request.displayName.trim()
+        ]
+      );
+      return { id: result.rows[0].id, status: result.rows[0].approval_status };
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: string }).code === "23505"
+      ) {
+        throw new Error("username, identityNo or phone already exists");
+      }
+      throw error;
+    }
+  }
+
   async listUsers(search = "", includeInactive = false): Promise<ManagedUser[]> {
     const keyword = `%${search.trim()}%`;
     const result = await this.pool.query<{
@@ -592,9 +686,10 @@ export class PostgresAuthAdapter implements AuthPort {
       role: Role;
       identity_provider: string;
       active: boolean;
+      approval_status: ApprovalStatus;
       created_at: string;
     }>(
-      `SELECT id, username, identity_type, identity_no, phone, display_name, role, identity_provider, active, created_at
+      `SELECT id, username, identity_type, identity_no, phone, display_name, role, identity_provider, active, approval_status, created_at
        FROM core.app_user
        WHERE ($2 = true OR active = true)
          AND (
@@ -620,6 +715,7 @@ export class PostgresAuthAdapter implements AuthPort {
       role: user.role,
       identityProvider: user.identity_provider,
       active: user.active,
+      approvalStatus: user.approval_status,
       createdAt: new Date(String(user.created_at)).toISOString()
     }));
   }
@@ -635,9 +731,10 @@ export class PostgresAuthAdapter implements AuthPort {
       role: Role;
       identity_provider: string;
       active: boolean;
+      approval_status: ApprovalStatus;
       created_at: string;
     }>(
-      `SELECT id, username, identity_type, identity_no, phone, display_name, role, identity_provider, active, created_at
+      `SELECT id, username, identity_type, identity_no, phone, display_name, role, identity_provider, active, approval_status, created_at
        FROM core.app_user
        WHERE id = $1`,
       [actorId]
@@ -655,6 +752,7 @@ export class PostgresAuthAdapter implements AuthPort {
           role: user.role,
           identityProvider: user.identity_provider,
           active: user.active,
+          approvalStatus: user.approval_status,
           createdAt: new Date(String(user.created_at)).toISOString()
         }
       : null;
@@ -786,6 +884,60 @@ export class PostgresAuthAdapter implements AuthPort {
     return profile;
   }
 
+  async listPendingRegistrations(): Promise<ManagedUser[]> {
+    const result = await this.pool.query<{
+      id: string;
+      username: string;
+      identity_type: IdentityType;
+      identity_no: string | null;
+      phone: string | null;
+      display_name: string;
+      role: Role;
+      identity_provider: string;
+      active: boolean;
+      approval_status: ApprovalStatus;
+      created_at: string;
+    }>(
+      `SELECT id, username, identity_type, identity_no, phone, display_name, role, identity_provider,
+              active, approval_status, created_at
+       FROM core.app_user WHERE approval_status = 'pending' ORDER BY created_at ASC LIMIT 200`
+    );
+    return result.rows.map((user) => ({
+      id: user.id,
+      username: user.username,
+      identityType: user.identity_type,
+      identityNo: user.identity_no ?? "",
+      phone: user.phone ?? undefined,
+      displayName: user.display_name,
+      role: user.role,
+      identityProvider: user.identity_provider,
+      active: user.active,
+      approvalStatus: user.approval_status,
+      createdAt: new Date(String(user.created_at)).toISOString()
+    }));
+  }
+
+  async reviewRegistration(
+    targetUserId: string,
+    action: "approve" | "reject",
+    reviewerId: string,
+    remark = ""
+  ): Promise<ManagedUser> {
+    const result = await this.pool.query(
+      `UPDATE core.app_user
+       SET approval_status = $2,
+           active = ($2 = 'approved'),
+           approved_at = CASE WHEN $2 = 'approved' THEN now() ELSE NULL END,
+           approved_by = $3,
+           rejection_reason = CASE WHEN $2 = 'rejected' THEN $4 ELSE NULL END
+       WHERE id = $1 AND approval_status = 'pending'
+       RETURNING id`,
+      [targetUserId, action === "approve" ? "approved" : "rejected", reviewerId, remark]
+    );
+    if (!result.rows[0]) throw new Error("pending registration not found");
+    return (await this.getUserProfile(targetUserId)) as ManagedUser;
+  }
+
   async authenticate(token: string): Promise<Actor | null> {
     const rawToken = token.replace("Bearer ", "");
     const result = await this.pool.query<{
@@ -812,17 +964,100 @@ export class PostgresAuthAdapter implements AuthPort {
   }
 }
 
+/**
+ * 混合认证：Keycloak 负责统一身份登录，本地数据库负责管理员创建账号和审核注册账号。
+ * 两条身份链共用同一套业务权限，不把密码交给 Keycloak 以外的 OIDC 流程处理。
+ */
+class HybridAuthAdapter implements AuthPort {
+  constructor(
+    private readonly oidc: KeycloakAuthAdapter,
+    private readonly local: PostgresAuthAdapter
+  ) {}
+
+  async initialize() {
+    await this.local.initialize();
+  }
+
+  async login(username: string, password: string) {
+    return this.local.login(username, password);
+  }
+
+  async authenticate(token: string) {
+    return (await this.oidc.authenticate(token)) ?? (await this.local.authenticate(token));
+  }
+
+  async registerLocalUser(request: LocalUserRegistrationRequest) {
+    return this.local.registerLocalUser(request);
+  }
+
+  async submitRegistration(request: PublicRegistrationRequest) {
+    return this.local.submitRegistration(request);
+  }
+
+  async listPendingRegistrations() {
+    return this.local.listPendingRegistrations();
+  }
+
+  async reviewRegistration(
+    targetUserId: string,
+    action: "approve" | "reject",
+    reviewerId: string,
+    remark?: string
+  ) {
+    return this.local.reviewRegistration(targetUserId, action, reviewerId, remark);
+  }
+
+  async listUsers(search?: string, includeInactive?: boolean) {
+    return this.local.listUsers(search, includeInactive);
+  }
+
+  async getUserProfile(actorId: string) {
+    return this.local.getUserProfile(actorId);
+  }
+
+  async changePassword(actorId: string, currentPassword: string, newPassword: string) {
+    return this.local.changePassword(actorId, currentPassword, newPassword);
+  }
+
+  async updateContact(actorId: string, phone: string) {
+    return this.local.updateContact(actorId, phone);
+  }
+
+  async resetUserPassword(targetUserId: string, newPassword: string) {
+    return this.local.resetUserPassword(targetUserId, newPassword);
+  }
+
+  async deactivateUser(targetUserId: string) {
+    return this.local.deactivateUser(targetUserId);
+  }
+
+  async updateUserRole(targetUserId: string, role: Role) {
+    return this.local.updateUserRole(targetUserId, role);
+  }
+
+  assertPermission(actor: Actor, permission: Permission) {
+    this.oidc.assertPermission(actor, permission);
+  }
+}
+
 export function createAuthAdapter(databaseUrl?: string): AuthPort {
-  if (process.env.AUTH_MODE === "oidc") {
+  if (process.env.AUTH_MODE === "oidc" || process.env.AUTH_MODE === "hybrid") {
     const issuer = process.env.KEYCLOAK_ISSUER;
     const clientId = process.env.KEYCLOAK_CLIENT_ID;
     if (!issuer || !clientId) {
       throw new Error("AUTH_MODE=oidc requires KEYCLOAK_ISSUER and KEYCLOAK_CLIENT_ID");
     }
-    return new KeycloakAuthAdapter(issuer, clientId, process.env.KEYCLOAK_AUDIENCE);
+    const oidc = new KeycloakAuthAdapter(issuer, clientId, process.env.KEYCLOAK_AUDIENCE);
+    if (process.env.AUTH_MODE === "hybrid") {
+      if (!databaseUrl) throw new Error("AUTH_MODE=hybrid requires DATABASE_URL");
+      return new HybridAuthAdapter(oidc, new PostgresAuthAdapter(databaseUrl));
+    }
+    return oidc;
   }
   if (process.env.NODE_ENV === "production" && process.env.AUTH_MODE !== "local") {
-    throw new Error("Production authentication must explicitly configure AUTH_MODE=oidc");
+    throw new Error(
+      "Production authentication must explicitly configure AUTH_MODE=oidc, hybrid or local"
+    );
   }
   if (!databaseUrl) {
     return new DemoAuthAdapter();

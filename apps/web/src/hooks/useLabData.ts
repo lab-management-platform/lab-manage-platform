@@ -65,6 +65,7 @@ export function useLabData(token: string, actor: Actor | null) {
   const [meetingAttendance, setMeetingAttendance] = useState<MeetingAttendance[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [pendingRegistrations, setPendingRegistrations] = useState<ManagedUser[]>([]);
   const [profile, setProfile] = useState<ManagedUser | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectTasks, setProjectTasks] = useState<ProjectTask[]>([]);
@@ -153,8 +154,14 @@ export function useLabData(token: string, actor: Actor | null) {
           .then(parseResponse<ManagedUser[]>)
           .then(setUsers)
       );
+      requests.push(
+        fetch(`${apiBase}/auth/registrations/pending`, { headers })
+          .then(parseResponse<ManagedUser[]>)
+          .then(setPendingRegistrations)
+      );
     } else {
       setUsers([]);
+      setPendingRegistrations([]);
     }
 
     const results = await Promise.allSettled(requests);
@@ -256,6 +263,7 @@ export function useLabData(token: string, actor: Actor | null) {
     notifications,
     unreadNotifications,
     users,
+    pendingRegistrations,
     profile,
     projects,
     projectTasks,
@@ -833,6 +841,16 @@ export function useLabData(token: string, actor: Actor | null) {
         body: JSON.stringify(payload)
       }).then(parseResponse<Actor>);
       setMessage("新成员账号已创建。");
+      await refreshAll();
+    },
+    async reviewRegistration(userId: string, action: "approve" | "reject", remark = "") {
+      if (!token) return;
+      await fetch(`${apiBase}/auth/registrations/${userId}`, {
+        method: "PATCH",
+        headers: toAuthorization(token),
+        body: JSON.stringify({ action, remark })
+      }).then(parseResponse<ManagedUser>);
+      setMessage(action === "approve" ? "注册申请已批准。" : "注册申请已驳回。");
       await refreshAll();
     },
     async resetUserPassword(userId: string, newPassword: string) {

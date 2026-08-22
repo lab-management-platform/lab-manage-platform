@@ -1,5 +1,6 @@
 export type Role = "student" | "professor" | "lab_admin" | "member" | "admin" | "super_admin";
 export type IdentityType = "student_no" | "employee_no";
+export type ApprovalStatus = "pending" | "approved" | "rejected";
 
 export type Permission =
   | "user:read"
@@ -35,6 +36,16 @@ export interface LocalUserRegistrationRequest {
   role: Role;
 }
 
+export interface PublicRegistrationRequest {
+  username: string;
+  password: string;
+  identityType: IdentityType;
+  identityNo: string;
+  displayName: string;
+  phone?: string;
+  reason?: string;
+}
+
 export interface ManagedUser {
   id: string;
   username: string;
@@ -45,6 +56,7 @@ export interface ManagedUser {
   role: Role;
   identityProvider: string;
   active: boolean;
+  approvalStatus: ApprovalStatus;
   createdAt: string;
 }
 
@@ -59,6 +71,16 @@ export interface ProjectMember {
 export interface AuthPort {
   login?(username: string, password: string): Promise<{ token: string; actor: Actor } | null>;
   registerLocalUser?(request: LocalUserRegistrationRequest): Promise<Actor>;
+  submitRegistration?(
+    request: PublicRegistrationRequest
+  ): Promise<{ id: string; status: ApprovalStatus }>;
+  listPendingRegistrations?(): Promise<ManagedUser[]>;
+  reviewRegistration?(
+    targetUserId: string,
+    action: "approve" | "reject",
+    reviewerId: string,
+    remark?: string
+  ): Promise<ManagedUser>;
   listUsers?(search?: string, includeInactive?: boolean): Promise<ManagedUser[]>;
   getUserProfile?(actorId: string): Promise<ManagedUser | null>;
   changePassword?(actorId: string, currentPassword: string, newPassword: string): Promise<void>;

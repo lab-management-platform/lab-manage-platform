@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: lab-management
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - keycloak.yaml
+  - api.yaml
+  - web.yaml
+  - ingress.yaml
+images:
+  - name: lab-api
+    newName: ghcr.io/lab-management-platform/lab-management-platform-api
+    newTag: latest
+  - name: lab-web
+    newName: ghcr.io/lab-management-platform/lab-management-platform-web
+    newTag: latest

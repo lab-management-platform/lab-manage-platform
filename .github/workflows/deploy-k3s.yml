@@ -1,0 +1,89 @@
+name: Deploy to K3s
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: k3s-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/lab-management-platform
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: api-prod
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/lab-management-platform-api:${{ github.sha }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web-prod
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=/api
+            VITE_AUTH_MODE=hybrid
+            VITE_KEYCLOAK_ISSUER=https://lab.wuosu.xyz/auth/realms/lab
+            VITE_KEYCLOAK_CLIENT_ID=lab-web
+          tags: ${{ env.IMAGE_PREFIX }}/lab-management-platform-web:${{ github.sha }}
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy manifests to K3s server
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          SHA: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+          POSTGRES_PASSWORD: ${{ secrets.K3S_POSTGRES_PASSWORD }}
+          KEYCLOAK_ADMIN_PASSWORD: ${{ secrets.K3S_KEYCLOAK_ADMIN_PASSWORD }}
+        with:
+          host: ${{ secrets.K3S_HOST }}
+          username: ${{ secrets.K3S_USER }}
+          key: ${{ secrets.K3S_SSH_PRIVATE_KEY }}
+          envs: SHA,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,KEYCLOAK_ADMIN_PASSWORD
+          script_stop: true
+          script: |
+            set -eu
+            cd /opt/lab-management-platform
+            git fetch origin main
+            git checkout --force main
+            git reset --hard origin/main
+            kubectl apply -f deploy/k3s/namespace.yaml
+            kubectl -n lab-management create secret generic lab-management-secrets \
+              --from-literal=POSTGRES_USER=lab \
+              --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+              --from-literal=POSTGRES_DB=lab_management \
+              --from-literal=DATABASE_URL="postgres://lab:$POSTGRES_PASSWORD@postgres:5432/lab_management" \
+              --from-literal=KEYCLOAK_ADMIN_USERNAME=admin \
+              --from-literal=KEYCLOAK_ADMIN_PASSWORD="$KEYCLOAK_ADMIN_PASSWORD" \
+              --from-literal=KEYCLOAK_ISSUER=https://lab.wuosu.xyz/auth/realms/lab \
+              --dry-run=client -o yaml | kubectl apply -f -
+            kubectl -n lab-management create secret docker-registry ghcr-pull \
+              --docker-server=ghcr.io --docker-username="$GHCR_USER" --docker-password="$GHCR_TOKEN" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            kubectl apply -k deploy/k3s
+            kubectl -n lab-management set image deployment/api api=ghcr.io/lab-management-platform/lab-management-platform-api:$SHA
+            kubectl -n lab-management set image deployment/web web=ghcr.io/lab-management-platform/lab-management-platform-web:$SHA
+            kubectl -n lab-management rollout status deployment/api --timeout=180s
+            kubectl -n lab-management rollout status deployment/web --timeout=180s
