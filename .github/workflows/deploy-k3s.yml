@@ -43,6 +43,7 @@ jobs:
             VITE_AUTH_MODE=hybrid
             VITE_KEYCLOAK_ISSUER=https://lab.wuosu.xyz/auth/realms/lab
             VITE_KEYCLOAK_CLIENT_ID=lab-web
+            VITE_XMU_CAS_ENABLED=false
           tags: ${{ env.IMAGE_PREFIX }}/lab-management-platform-web:${{ github.sha }}
 
   deploy:

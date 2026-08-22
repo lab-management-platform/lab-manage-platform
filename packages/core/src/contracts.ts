@@ -70,6 +70,11 @@ export interface ProjectMember {
 
 export interface AuthPort {
   login?(username: string, password: string): Promise<{ token: string; actor: Actor } | null>;
+  loginExternal?(
+    provider: string,
+    subject: string,
+    displayName?: string
+  ): Promise<{ token: string; actor: Actor } | null>;
   registerLocalUser?(request: LocalUserRegistrationRequest): Promise<Actor>;
   submitRegistration?(
     request: PublicRegistrationRequest

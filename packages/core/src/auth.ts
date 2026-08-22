@@ -589,6 +589,45 @@ export class PostgresAuthAdapter implements AuthPort {
     return { token, actor: toActor(user) };
   }
 
+  async loginExternal(
+    provider: string,
+    subject: string,
+    displayName?: string
+  ): Promise<{ token: string; actor: Actor } | null> {
+    const result = await this.pool.query<{
+      id: string;
+      username: string;
+      display_name: string;
+      role: Role;
+    }>(
+      `SELECT id, username, display_name, role
+         FROM core.app_user
+        WHERE active = true
+          AND approval_status = 'approved'
+          AND (external_subject = $1 OR (identity_provider = $2 AND identity_no = $1))
+        LIMIT 1`,
+      [subject, provider]
+    );
+    const user = result.rows[0];
+    if (!user) return null;
+
+    await this.pool.query(
+      `UPDATE core.app_user
+          SET external_subject = COALESCE(external_subject, $1),
+              identity_provider = $2,
+              display_name = COALESCE(NULLIF($3, ''), display_name)
+        WHERE id = $4`,
+      [subject, provider, displayName ?? "", user.id]
+    );
+    const token = randomUUID();
+    await this.pool.query(
+      `INSERT INTO core.session (token, user_id, expires_at)
+       VALUES ($1, $2, now() + interval '8 hours')`,
+      [token, user.id]
+    );
+    return { token, actor: toActor({ ...user, display_name: displayName || user.display_name }) };
+  }
+
   async registerLocalUser(request: LocalUserRegistrationRequest): Promise<Actor> {
     validateLocalRegistration(request);
 
@@ -980,6 +1019,10 @@ class HybridAuthAdapter implements AuthPort {
 
   async login(username: string, password: string) {
     return this.local.login(username, password);
+  }
+
+  async loginExternal(provider: string, subject: string, displayName?: string) {
+    return this.local.loginExternal(provider, subject, displayName);
   }
 
   async authenticate(token: string) {

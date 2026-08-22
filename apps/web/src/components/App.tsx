@@ -79,6 +79,31 @@ export function App() {
   }, [activeView]);
 
   useEffect(() => {
+    const xmuComplete = window.location.pathname === "/auth/xmu/complete";
+    if (xmuComplete) {
+      const code = new URLSearchParams(window.location.search).get("code");
+      if (!code) return;
+      void (async () => {
+        try {
+          const response = await fetch(`${apiBase}/auth/xmu/exchange`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code })
+          });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error ?? "厦大统一身份认证登录失败");
+          setToken(payload.token);
+          setActor(payload.actor);
+          sessionStorage.setItem("lab_token", payload.token);
+          sessionStorage.setItem("lab_actor", JSON.stringify(payload.actor));
+          window.history.replaceState({}, "", "/");
+        } catch (error) {
+          lab.setMessage(error instanceof Error ? error.message : "厦大统一身份认证登录失败");
+          window.history.replaceState({}, "", "/");
+        }
+      })();
+      return;
+    }
     if (!oidcEnabled) return;
     void (async () => {
       const callback = window.location.pathname === "/auth/callback";

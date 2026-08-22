@@ -1,6 +1,15 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import { randomUUID } from "node:crypto";
 import { createKernel } from "./kernel.js";
+
+type CasExchange = { token: string; actor: unknown; expiresAt: number };
+const casExchanges = new Map<string, CasExchange>();
+
+function xmlValue(xml: string, tag: string): string | null {
+  const match = xml.match(new RegExp(`<[^>]*${tag}[^>]*>([^<]+)</`));
+  return match?.[1]?.trim() ?? null;
+}
 
 export async function createApiApp() {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" });
@@ -33,6 +42,73 @@ export async function createApiApp() {
     }
 
     return session;
+  });
+
+  app.get("/auth/xmu/start", async (request, reply) => {
+    if (process.env.XMU_CAS_ENABLED !== "true") {
+      return reply.code(404).send({ error: "XMU CAS is not enabled" });
+    }
+    const service = process.env.XMU_CAS_SERVICE_URL;
+    const loginUrl = process.env.XMU_CAS_LOGIN_URL ?? "https://ids.xmu.edu.cn/authserver/login";
+    if (!service) {
+      return reply.code(503).send({ error: "XMU_CAS_SERVICE_URL is not configured" });
+    }
+    const url = new URL(loginUrl);
+    url.searchParams.set("service", service);
+    return reply.redirect(url.toString());
+  });
+
+  app.get("/auth/xmu/callback", async (request, reply) => {
+    if (process.env.XMU_CAS_ENABLED !== "true") {
+      return reply.code(404).send({ error: "XMU CAS is not enabled" });
+    }
+    const query = request.query as { ticket?: string; service?: string };
+    const service = process.env.XMU_CAS_SERVICE_URL;
+    const validateUrl =
+      process.env.XMU_CAS_VALIDATE_URL ?? "https://ids.xmu.edu.cn/authserver/serviceValidate";
+    const frontendUrl =
+      process.env.XMU_CAS_FRONTEND_URL ?? new URL("/", service ?? "http://localhost/").origin;
+    if (!service || !query.ticket) {
+      return reply.code(400).send({ error: "CAS ticket and service are required" });
+    }
+    if (query.service && query.service !== service) {
+      return reply.code(400).send({ error: "CAS service mismatch" });
+    }
+
+    const url = new URL(validateUrl);
+    url.searchParams.set("ticket", query.ticket);
+    url.searchParams.set("service", service);
+    const response = await fetch(url);
+    const xml = await response.text();
+    const subject = xmlValue(xml, "user");
+    if (!response.ok || !subject || !xml.includes("authenticationSuccess")) {
+      return reply.code(401).send({ error: "XMU CAS authentication failed" });
+    }
+    if (!kernel.auth.loginExternal) {
+      return reply.code(409).send({ error: "XMU CAS account linking is unavailable" });
+    }
+    const session = await kernel.auth.loginExternal("xmu-cas", subject, subject);
+    if (!session) {
+      return reply.code(403).send({
+        error: "XMU account is authenticated but is not yet an approved lab member",
+        subject
+      });
+    }
+    const code = randomUUID();
+    casExchanges.set(code, { ...session, expiresAt: Date.now() + 120_000 });
+    const frontendBase = frontendUrl.endsWith("/") ? frontendUrl.slice(0, -1) : frontendUrl;
+    return reply.redirect(`${frontendBase}/auth/xmu/complete?code=${encodeURIComponent(code)}`);
+  });
+
+  app.post("/auth/xmu/exchange", async (request, reply) => {
+    const body = request.body as { code?: string };
+    const exchange = body.code ? casExchanges.get(body.code) : undefined;
+    if (!body.code || !exchange || exchange.expiresAt < Date.now()) {
+      if (body.code) casExchanges.delete(body.code);
+      return reply.code(401).send({ error: "CAS exchange code is invalid or expired" });
+    }
+    casExchanges.delete(body.code);
+    return exchange;
   });
 
   // 个人注册不直接创建可登录账号，必须经过管理员审核。

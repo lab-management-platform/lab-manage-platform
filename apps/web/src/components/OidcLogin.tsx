@@ -1,5 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { localLoginEnabled, oidcManager, publicRegistrationEnabled } from "../auth/oidc";
+import {
+  localLoginEnabled,
+  oidcManager,
+  publicRegistrationEnabled,
+  xmuCasEnabled
+} from "../auth/oidc";
 import { apiBase } from "../utils/helpers";
 
 interface OidcLoginProps {
@@ -147,6 +152,11 @@ export function OidcLogin({ onLocalLogin }: OidcLoginProps) {
         <button className="primary" type="button" onClick={login} disabled={loading}>
           {loading ? "正在跳转..." : "使用统一身份认证登录"}
         </button>
+        {xmuCasEnabled ? (
+          <a className="secondary-button" href={`${apiBase}/auth/xmu/start`}>
+            使用厦门大学统一身份认证
+          </a>
+        ) : null}
         {localLoginEnabled && onLocalLogin ? (
           <form className="inline-login-form" onSubmit={submitLocalLogin}>
             <div className="login-divider">或使用平台账号</div>

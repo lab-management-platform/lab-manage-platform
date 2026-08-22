@@ -45,6 +45,16 @@ spec:
               value: lab-api
             - name: KEYCLOAK_AUDIENCE
               value: lab-api
+            - name: XMU_CAS_ENABLED
+              value: "false"
+            - name: XMU_CAS_LOGIN_URL
+              value: https://ids.xmu.edu.cn/authserver/login
+            - name: XMU_CAS_VALIDATE_URL
+              value: https://ids.xmu.edu.cn/authserver/serviceValidate
+            - name: XMU_CAS_SERVICE_URL
+              value: https://lab.wuosu.xyz/api/auth/xmu/callback
+            - name: XMU_CAS_FRONTEND_URL
+              value: https://lab.wuosu.xyz
           readinessProbe:
             httpGet:
               path: /health
