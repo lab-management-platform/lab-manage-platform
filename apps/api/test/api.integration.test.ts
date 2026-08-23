@@ -308,4 +308,186 @@ describe("api integration", () => {
       ])
     );
   });
+
+  it("supports public registration, admin approval and login", async () => {
+    const suffix = Date.now();
+    const username = `reg${suffix}`;
+    const identityNo = `REG${suffix}`;
+    const password = "Student@123456";
+    const phone = "13800138000";
+
+    const submitted = await app.inject({
+      method: "POST",
+      url: "/auth/registration",
+      payload: {
+        username,
+        password,
+        identityType: "student_no",
+        identityNo,
+        displayName: `注册测试${suffix}`,
+        phone,
+        reason: "integration test"
+      }
+    });
+    expect(submitted.statusCode).toBe(202);
+    expect(submitted.json<{ status: string }>().status).toBe("pending");
+
+    const loginBefore = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { username, password }
+    });
+    expect(loginBefore.statusCode).toBe(401);
+
+    const pending = await app.inject({
+      method: "GET",
+      url: "/auth/registrations/pending",
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(pending.statusCode).toBe(200);
+    const pendingUser = pending
+      .json<Array<{ id: string; username: string }>>()
+      .find((user) => user.username === username);
+    expect(pendingUser).toBeTruthy();
+
+    const approved = await app.inject({
+      method: "PATCH",
+      url: `/auth/registrations/${pendingUser!.id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { action: "approve" }
+    });
+    expect(approved.statusCode).toBe(200);
+
+    const loginAfter = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { username, password }
+    });
+    expect(loginAfter.statusCode).toBe(200);
+
+    const status = await app.inject({
+      method: "POST",
+      url: "/auth/registration/status",
+      payload: { username, identityNo }
+    });
+    expect(status.statusCode).toBe(200);
+    expect(status.json<{ status: string }>().status).toBe("approved");
+  });
+
+  it("supports rejection with reason, status query and password reset", async () => {
+    const suffix = Date.now() + 1;
+    const rejectedUsername = `rej${suffix}`;
+    const rejectedNo = `REJ${suffix}`;
+    const password = "Student@123456";
+    const rejectedPhone = "13800138001";
+
+    const rejectedSubmit = await app.inject({
+      method: "POST",
+      url: "/auth/registration",
+      payload: {
+        username: rejectedUsername,
+        password,
+        identityType: "student_no",
+        identityNo: rejectedNo,
+        displayName: "驳回测试",
+        phone: rejectedPhone
+      }
+    });
+    expect(rejectedSubmit.statusCode).toBe(202);
+    const rejectedId = rejectedSubmit.json<{ id: string }>().id;
+
+    const rejected = await app.inject({
+      method: "PATCH",
+      url: `/auth/registrations/${rejectedId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { action: "reject", remark: "学号信息不完整" }
+    });
+    expect(rejected.statusCode).toBe(200);
+
+    const loginRejected = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { username: rejectedUsername, password }
+    });
+    expect(loginRejected.statusCode).toBe(401);
+
+    const rejectedStatus = await app.inject({
+      method: "POST",
+      url: "/auth/registration/status",
+      payload: { username: rejectedUsername, identityNo: rejectedNo }
+    });
+    expect(rejectedStatus.statusCode).toBe(200);
+    expect(rejectedStatus.json<{ status: string; rejectionReason: string }>()).toEqual(
+      expect.objectContaining({ status: "rejected", rejectionReason: "学号信息不完整" })
+    );
+
+    const notFoundStatus = await app.inject({
+      method: "POST",
+      url: "/auth/registration/status",
+      payload: { username: rejectedUsername, identityNo: "NOPE-999" }
+    });
+    expect(notFoundStatus.statusCode).toBe(404);
+
+    const resetUsername = `psw${suffix}`;
+    const resetNo = `PSW${suffix}`;
+    const resetPhone = "13800138002";
+    const registered = await app.inject({
+      method: "POST",
+      url: "/auth/registration",
+      payload: {
+        username: resetUsername,
+        password,
+        identityType: "student_no",
+        identityNo: resetNo,
+        displayName: "重置测试",
+        phone: resetPhone
+      }
+    });
+    expect(registered.statusCode).toBe(202);
+    const resetId = registered.json<{ id: string }>().id;
+    await app.inject({
+      method: "PATCH",
+      url: `/auth/registrations/${resetId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { action: "approve" }
+    });
+
+    const reset = await app.inject({
+      method: "POST",
+      url: "/auth/password/reset",
+      payload: {
+        username: resetUsername,
+        identityNo: resetNo,
+        phone: resetPhone,
+        newPassword: "NewPass@123456"
+      }
+    });
+    expect(reset.statusCode).toBe(200);
+
+    const oldLogin = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { username: resetUsername, password }
+    });
+    expect(oldLogin.statusCode).toBe(401);
+
+    const newLogin = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { username: resetUsername, password: "NewPass@123456" }
+    });
+    expect(newLogin.statusCode).toBe(200);
+
+    const badReset = await app.inject({
+      method: "POST",
+      url: "/auth/password/reset",
+      payload: {
+        username: resetUsername,
+        identityNo: resetNo,
+        phone: "13900139000",
+        newPassword: "OtherPass@123456"
+      }
+    });
+    expect(badReset.statusCode).toBe(404);
+  });
 });
