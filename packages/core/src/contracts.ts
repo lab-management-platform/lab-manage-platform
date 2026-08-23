@@ -2,6 +2,20 @@ export type Role = "student" | "professor" | "lab_admin" | "member" | "admin" | 
 export type IdentityType = "student_no" | "employee_no";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
+export interface RegistrationStatusResult {
+  status: ApprovalStatus;
+  submittedAt: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+}
+
+export interface PasswordResetRequest {
+  username: string;
+  identityNo: string;
+  phone: string;
+  newPassword: string;
+}
+
 export type Permission =
   | "user:read"
   | "user:write"
@@ -86,6 +100,11 @@ export interface AuthPort {
     reviewerId: string,
     remark?: string
   ): Promise<ManagedUser>;
+  queryRegistrationStatus?(
+    username: string,
+    identityNo: string
+  ): Promise<RegistrationStatusResult | null>;
+  resetPassword?(request: PasswordResetRequest): Promise<void>;
   listUsers?(search?: string, includeInactive?: boolean): Promise<ManagedUser[]>;
   getUserProfile?(actorId: string): Promise<ManagedUser | null>;
   changePassword?(actorId: string, currentPassword: string, newPassword: string): Promise<void>;
