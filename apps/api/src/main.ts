@@ -159,6 +159,55 @@ export async function createApiApp() {
     }
   });
 
+  app.post("/auth/registration/status", async (request, reply) => {
+    const body = request.body as Partial<{ username: string; identityNo: string }>;
+    if (!body.username || !body.identityNo) {
+      return reply.code(400).send({ error: "username and identityNo are required" });
+    }
+    if (!kernel.auth.queryRegistrationStatus) {
+      return reply
+        .code(409)
+        .send({ error: "registration status query is unavailable in the current authentication mode" });
+    }
+    const status = await kernel.auth.queryRegistrationStatus(body.username, body.identityNo);
+    if (!status) {
+      return reply.code(404).send({ error: "registration not found" });
+    }
+    return status;
+  });
+
+  app.post("/auth/password/reset", async (request, reply) => {
+    const body = request.body as Partial<{
+      username: string;
+      identityNo: string;
+      phone: string;
+      newPassword: string;
+    }>;
+    if (!body.username || !body.identityNo || !body.phone || !body.newPassword) {
+      return reply.code(400).send({
+        error: "username, identityNo, phone and newPassword are required"
+      });
+    }
+    if (!kernel.auth.resetPassword) {
+      return reply
+        .code(409)
+        .send({ error: "password reset is unavailable in the current authentication mode" });
+    }
+    try {
+      await kernel.auth.resetPassword({
+        username: body.username,
+        identityNo: body.identityNo,
+        phone: body.phone,
+        newPassword: body.newPassword
+      });
+      return { ok: true };
+    } catch (error) {
+      return reply
+        .code(error instanceof Error && error.message.includes("not found") ? 404 : 400)
+        .send({ error: error instanceof Error ? error.message : "password reset failed" });
+    }
+  });
+
   app.get("/auth/me", async (request, reply) => {
     const authorization = Array.isArray(request.headers.authorization)
       ? request.headers.authorization[0]
