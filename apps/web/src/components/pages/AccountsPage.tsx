@@ -174,9 +174,12 @@ export function AccountsPage({
                       <button
                         type="button"
                         className="tertiary-button ghost-tone"
-                        onClick={() =>
-                          void onReviewRegistration(user.id, "reject", "资料未通过审核")
-                        }
+                        onClick={() => {
+                          const remark = window.prompt("请输入驳回原因（可留空）", "");
+                          if (remark !== null) {
+                            void onReviewRegistration(user.id, "reject", remark);
+                          }
+                        }}
                       >
                         驳回
                       </button>
