@@ -1053,6 +1053,56 @@ export class PostgresAuthAdapter implements AuthPort {
     return (await this.getUserProfile(targetUserId)) as ManagedUser;
   }
 
+  async queryRegistrationStatus(
+    username: string,
+    identityNo: string
+  ): Promise<RegistrationStatusResult | null> {
+    const result = await this.pool.query<{
+      approval_status: ApprovalStatus;
+      approval_requested_at: string | null;
+      approved_at: string | null;
+      rejection_reason: string | null;
+      created_at: string;
+    }>(
+      `SELECT approval_status, approval_requested_at, approved_at, rejection_reason, created_at
+       FROM core.app_user
+       WHERE identity_no = $2 AND (username = $1 OR identity_no = $1)`,
+      [username, identityNo]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      status: row.approval_status,
+      submittedAt: new Date(String(row.approval_requested_at ?? row.created_at)).toISOString(),
+      reviewedAt: row.approved_at ? new Date(String(row.approved_at)).toISOString() : undefined,
+      rejectionReason: row.rejection_reason ?? undefined
+    };
+  }
+
+  async resetPassword(request: PasswordResetRequest): Promise<void> {
+    if (request.newPassword.length < 8) {
+      throw new Error("newPassword must be at least 8 characters");
+    }
+    const result = await this.pool.query<{ id: string }>(
+      `UPDATE core.app_user
+       SET password_hash = $3
+       WHERE active = true
+         AND approval_status = 'approved'
+         AND identity_no = $2
+         AND (username = $1 OR identity_no = $1)
+         AND phone = $4
+         AND identity_provider = 'local'
+       RETURNING id`,
+      [request.username, request.identityNo, hashPassword(request.newPassword), request.phone]
+    );
+    if (!result.rows[0]) {
+      throw new Error("user not found or contact information does not match");
+    }
+    await this.pool.query(`DELETE FROM core.session WHERE user_id = $1`, [result.rows[0].id]);
+  }
+
   async authenticate(token: string): Promise<Actor | null> {
     const rawToken = token.replace("Bearer ", "");
     const result = await this.pool.query<{
@@ -1124,6 +1174,14 @@ class HybridAuthAdapter implements AuthPort {
     remark?: string
   ) {
     return this.local.reviewRegistration(targetUserId, action, reviewerId, remark);
+  }
+
+  async queryRegistrationStatus(username: string, identityNo: string) {
+    return this.local.queryRegistrationStatus(username, identityNo);
+  }
+
+  async resetPassword(request: PasswordResetRequest) {
+    return this.local.resetPassword(request);
   }
 
   async listUsers(search?: string, includeInactive?: boolean) {
