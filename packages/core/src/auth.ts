@@ -8,7 +8,9 @@ import type {
   ManagedUser,
   PublicRegistrationRequest,
   ApprovalStatus,
+  PasswordResetRequest,
   Permission,
+  RegistrationStatusResult,
   Role
 } from "./contracts.js";
 import { KeycloakAuthAdapter } from "./keycloak-auth.js";
@@ -105,6 +107,11 @@ interface DemoUser {
   displayName: string;
   role: Role;
   passwordHash: string;
+  approvalStatus: ApprovalStatus;
+  approvalRequestedAt?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
 }
 
 const DEMO_PASSWORDS = {
@@ -121,7 +128,9 @@ const demoUsers: DemoUser[] = [
     identityNo: "EMP-ADMIN-001",
     displayName: "实验室管理员",
     role: "lab_admin" as const,
-    passwordHash: ""
+    passwordHash: "",
+    approvalStatus: "approved",
+    createdAt: "2026-07-01T00:00:00.000Z"
   },
   {
     id: "u-prof001",
@@ -130,7 +139,9 @@ const demoUsers: DemoUser[] = [
     identityNo: "EMP-PROF-001",
     displayName: "张教授",
     role: "professor" as const,
-    passwordHash: ""
+    passwordHash: "",
+    approvalStatus: "approved",
+    createdAt: "2026-07-01T00:00:00.000Z"
   },
   {
     id: "u-student001",
@@ -139,7 +150,9 @@ const demoUsers: DemoUser[] = [
     identityNo: "STU-001",
     displayName: "学生一号",
     role: "student" as const,
-    passwordHash: ""
+    passwordHash: "",
+    approvalStatus: "approved",
+    createdAt: "2026-07-01T00:00:00.000Z"
   }
 ];
 
@@ -243,9 +256,9 @@ function toManagedUser(user: DemoUser): ManagedUser {
     displayName: user.displayName,
     role: user.role,
     identityProvider: "local",
-    active: true,
-    approvalStatus: "approved",
-    createdAt: new Date().toISOString()
+    active: user.approvalStatus === "approved",
+    approvalStatus: user.approvalStatus,
+    createdAt: user.createdAt
   };
 }
 
@@ -256,6 +269,7 @@ export class DemoAuthAdapter implements AuthPort {
   async login(username: string, password: string): Promise<{ token: string; actor: Actor } | null> {
     const user = this.users.find(
       (item) =>
+        item.approvalStatus === "approved" &&
         verifyPassword(password, item.passwordHash) &&
         [item.username, item.identityNo, item.phone].some((value) => value === username)
     );
@@ -285,7 +299,9 @@ export class DemoAuthAdapter implements AuthPort {
       identityNo: request.identityNo,
       displayName: request.displayName,
       role: request.role,
-      passwordHash: hashPassword(request.password)
+      passwordHash: hashPassword(request.password),
+      approvalStatus: "approved" as const,
+      createdAt: new Date().toISOString()
     };
     this.users.push(user);
     return toActor(user);
@@ -310,18 +326,78 @@ export class DemoAuthAdapter implements AuthPort {
       phone: request.phone,
       displayName: request.displayName,
       role: "student",
-      passwordHash: hashPassword(request.password)
+      passwordHash: hashPassword(request.password),
+      approvalStatus: "pending",
+      approvalRequestedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     };
     this.users.push(user);
     return { id: user.id, status: "pending" };
   }
 
   async listPendingRegistrations(): Promise<ManagedUser[]> {
-    return [];
+    return this.users
+      .filter((user) => user.approvalStatus === "pending")
+      .map((user) => toManagedUser(user));
   }
 
-  async reviewRegistration(): Promise<ManagedUser> {
-    throw new Error("registration review is unavailable in demo mode");
+  async reviewRegistration(
+    targetUserId: string,
+    action: "approve" | "reject",
+    reviewerId: string,
+    remark = ""
+  ): Promise<ManagedUser> {
+    const user = this.users.find((item) => item.id === targetUserId);
+    if (!user || user.approvalStatus !== "pending") {
+      throw new Error("pending registration not found");
+    }
+    void reviewerId;
+    user.approvalStatus = action === "approve" ? "approved" : "rejected";
+    user.approvedAt = new Date().toISOString();
+    user.rejectionReason = action === "reject" ? remark : undefined;
+    return toManagedUser(user);
+  }
+
+  async queryRegistrationStatus(
+    username: string,
+    identityNo: string
+  ): Promise<RegistrationStatusResult | null> {
+    const user = this.users.find(
+      (item) =>
+        item.identityNo === identityNo &&
+        [item.username, item.identityNo].some((value) => value === username)
+    );
+    if (!user) {
+      return null;
+    }
+    return {
+      status: user.approvalStatus,
+      submittedAt: user.approvalRequestedAt ?? user.createdAt,
+      reviewedAt: user.approvedAt,
+      rejectionReason: user.rejectionReason
+    };
+  }
+
+  async resetPassword(request: PasswordResetRequest): Promise<void> {
+    if (request.newPassword.length < 8) {
+      throw new Error("newPassword must be at least 8 characters");
+    }
+    const user = this.users.find(
+      (item) =>
+        item.approvalStatus === "approved" &&
+        [item.username, item.identityNo].some((value) => value === request.username) &&
+        item.identityNo === request.identityNo &&
+        item.phone === request.phone
+    );
+    if (!user) {
+      throw new Error("user not found or contact information does not match");
+    }
+    user.passwordHash = hashPassword(request.newPassword);
+    for (const [token, session] of this.sessions.entries()) {
+      if (session.id === user.id) {
+        this.sessions.delete(token);
+      }
+    }
   }
 
   async listUsers(search = "", includeInactive = false): Promise<ManagedUser[]> {
