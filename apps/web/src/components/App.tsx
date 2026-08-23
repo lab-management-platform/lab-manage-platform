@@ -28,6 +28,8 @@ export function App() {
   const [resetMode, setResetMode] = useState(false);
   const [resetIdentifier, setResetIdentifier] = useState("");
   const [resetPhone, setResetPhone] = useState("");
+  const [resetIdentityNo, setResetIdentityNo] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
   const [resetResult, setResetResult] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [activeView, setActiveView] = useState<AppView>("dashboard");
@@ -148,10 +150,31 @@ export function App() {
 
   async function resetPassword(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
-    void event;
-    void resetIdentifier;
-    void resetPhone;
-    setResetResult("密码重置已迁移到统一身份认证，请联系管理员或使用身份认证中心的找回密码流程。");
+    if (resetNewPassword.length < 8) {
+      setResetResult("新密码至少需要 8 位");
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const response = await fetch(`${apiBase}/auth/password/reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: resetIdentifier,
+          identityNo: resetIdentityNo,
+          phone: resetPhone,
+          newPassword: resetNewPassword
+        })
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "密码重置失败");
+      setResetResult("密码已重置，请使用新密码登录。");
+      setResetNewPassword("");
+    } catch (error) {
+      setResetResult(error instanceof Error ? error.message : "密码重置失败");
+    } finally {
+      setAuthLoading(false);
+    }
   }
 
   function logout() {
@@ -181,6 +204,10 @@ export function App() {
         setResetIdentifier={setResetIdentifier}
         resetPhone={resetPhone}
         setResetPhone={setResetPhone}
+        resetIdentityNo={resetIdentityNo}
+        setResetIdentityNo={setResetIdentityNo}
+        resetNewPassword={resetNewPassword}
+        setResetNewPassword={setResetNewPassword}
         resetResult={resetResult}
         onSubmit={login}
         onResetPassword={resetPassword}

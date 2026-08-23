@@ -1,4 +1,5 @@
 import { useState, type SyntheticEvent } from "react";
+import { PublicRegistrationPanel } from "./auth/PublicRegistrationPanel";
 
 interface LoginFormProps {
   username: string;
@@ -13,6 +14,10 @@ interface LoginFormProps {
   setResetIdentifier: (v: string) => void;
   resetPhone: string;
   setResetPhone: (v: string) => void;
+  resetIdentityNo: string;
+  setResetIdentityNo: (v: string) => void;
+  resetNewPassword: string;
+  setResetNewPassword: (v: string) => void;
   resetResult: string;
   onSubmit: (e: SyntheticEvent<HTMLFormElement>) => void;
   onResetPassword: (e: SyntheticEvent<HTMLFormElement>) => void;
@@ -31,11 +36,20 @@ export function LoginForm({
   setResetIdentifier,
   resetPhone,
   setResetPhone,
+  resetIdentityNo,
+  setResetIdentityNo,
+  resetNewPassword,
+  setResetNewPassword,
   resetResult,
   onSubmit,
   onResetPassword
 }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+
+  if (showRegister) {
+    return <PublicRegistrationPanel onBack={() => setShowRegister(false)} />;
+  }
 
   if (resetMode) {
     return (
@@ -49,15 +63,24 @@ export function LoginForm({
             </div>
           </div>
           <h1>找回密码</h1>
-          <p>输入账号或学号/工号，以及绑定的手机号。</p>
+          <p>输入账号/学号、学号/工号、绑定的手机号，并设置新密码。</p>
 
           <label>
-            账号 / 学号 / 工号
+            账号 / 学号
             <input
               value={resetIdentifier}
               autoComplete="off"
-              placeholder="请输入账号或学号/工号"
+              placeholder="请输入账号或学号"
               onChange={(event) => setResetIdentifier(event.target.value)}
+            />
+          </label>
+          <label>
+            学号 / 工号
+            <input
+              value={resetIdentityNo}
+              autoComplete="off"
+              placeholder="请输入学号或工号"
+              onChange={(event) => setResetIdentityNo(event.target.value)}
             />
           </label>
           <label>
@@ -69,8 +92,19 @@ export function LoginForm({
               onChange={(event) => setResetPhone(event.target.value)}
             />
           </label>
+          <label>
+            新密码
+            <input
+              type="password"
+              minLength={8}
+              value={resetNewPassword}
+              autoComplete="new-password"
+              placeholder="至少 8 位"
+              onChange={(event) => setResetNewPassword(event.target.value)}
+            />
+          </label>
           <button className="primary" disabled={loading}>
-            {loading ? "验证中..." : "找回密码"}
+            {loading ? "提交中..." : "重置密码"}
           </button>
 
           {resetResult ? (
@@ -177,6 +211,9 @@ export function LoginForm({
 
         <button type="button" className="forgot-link" onClick={() => setResetMode(true)}>
           忘记密码？
+        </button>
+        <button type="button" className="forgot-link" onClick={() => setShowRegister(true)}>
+          个人注册 / 申请加入
         </button>
       </form>
     </main>
