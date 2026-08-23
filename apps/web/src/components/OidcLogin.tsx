@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
 import {
   localLoginEnabled,
   oidcManager,
@@ -33,7 +33,7 @@ export function OidcLogin({ onLocalLogin }: OidcLoginProps) {
     }
   }
 
-  async function submitLocalLogin(event: FormEvent) {
+  async function submitLocalLogin(event: SyntheticEvent) {
     event.preventDefault();
     if (!onLocalLogin) return;
     setLoading(true);
@@ -46,7 +46,7 @@ export function OidcLogin({ onLocalLogin }: OidcLoginProps) {
     }
   }
 
-  async function submitRegistration(event: FormEvent) {
+  async function submitRegistration(event: SyntheticEvent) {
     event.preventDefault();
     setLoading(true);
     try {

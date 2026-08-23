@@ -230,7 +230,6 @@ export function App() {
               actor={actor}
               actorName={actor.displayName}
               summary={lab.summary}
-              categories={lab.inventoryCategories}
               projects={lab.projects}
               tasks={lab.projectTasks}
               materials={lab.materials}
@@ -262,7 +261,6 @@ export function App() {
               projectTreeSnapshots={lab.projectTreeSnapshots}
               members={lab.projectMembers}
               users={lab.users}
-              pendingRegistrations={lab.pendingRegistrations}
               onCreateProject={lab.createProject}
               onApproveProject={lab.approveProject}
               onCreateTask={lab.createTask}
@@ -285,6 +283,7 @@ export function App() {
             <InventoryPage
               actor={actor}
               summary={lab.summary}
+              categories={lab.inventoryCategories}
               materials={lab.materials}
               applications={lab.applications}
               stockMovements={lab.stockMovements}
