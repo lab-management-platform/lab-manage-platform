@@ -6,7 +6,7 @@ services:
     command: pnpm --filter @lab/api dev
     env_file: .env
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${DEV_API_PORT:-3000}:3000"
     volumes:
       - .:/workspace
       - /workspace/node_modules
@@ -28,11 +28,12 @@ services:
     command: pnpm --filter @lab/web dev --host 0.0.0.0
     env_file: .env
     environment:
+      VITE_API_BASE_URL: http://localhost:${DEV_API_PORT:-3000}
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "300"
       WATCHPACK_POLLING: "true"
     ports:
-      - "5173:5173"
+      - "127.0.0.1:${DEV_WEB_PORT:-5173}:5173"
     volumes:
       - .:/workspace
       - /workspace/node_modules
@@ -53,7 +54,7 @@ services:
       POSTGRES_PASSWORD: lab_password
       POSTGRES_DB: lab_management
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${DEV_POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
