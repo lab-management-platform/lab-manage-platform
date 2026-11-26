@@ -11,6 +11,10 @@ dist/
 .env.*
 !.env.example
 !.env.production.example
+.deploy-secrets/
+*.pem
+*.key
+deploy/k3s/secret.yaml
 
 # IDE & editor
 .vscode/
@@ -40,10 +44,15 @@ logs/
 # Test coverage
 coverage/
 
-# MCP config (local machine paths)
+# MCP config & local AI assistant folders
 .mcp.json
 CLAUDE.md
 .ai/
+.claude/
+.codex/
+.agents/
+.arts/
+.codeartsdoer/
 
 # Local presentation / temporary coordination materials
 cdl/
@@ -55,10 +64,14 @@ docs/07-integration/teacher-brief-5min.md
 docs/07-integration/teacher-brief-2min.md
 docs/07-integration/temp.md
 
-# Temp files
+# Temp files & test artifacts
 *.tmp
 *.temp
+*.bak
 images.tar
+playwright-artifacts/
+playwright-report/
+test-results/
 
 # Copied vendor files (generated at build time by copy-pdf-worker.mjs)
 apps/web/public/mammoth.browser.min.js
