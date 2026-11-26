@@ -7,6 +7,7 @@ interface AccountsPageProps {
   actor: Actor;
   profile: ManagedUser | null;
   users: ManagedUser[];
+  pendingRegistrations: ManagedUser[];
   onUpdateContact: (phone: string) => Promise<void>;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onRegisterUser: (payload: {
@@ -17,6 +18,11 @@ interface AccountsPageProps {
     displayName: string;
     role: Role;
   }) => Promise<void>;
+  onReviewRegistration: (
+    userId: string,
+    action: "approve" | "reject",
+    remark?: string
+  ) => Promise<void>;
   onResetUserPassword: (userId: string, newPassword: string) => Promise<void>;
   onUpdateUserRole: (userId: string, role: Role) => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
@@ -26,9 +32,11 @@ export function AccountsPage({
   actor,
   profile,
   users,
+  pendingRegistrations,
   onUpdateContact,
   onChangePassword,
   onRegisterUser,
+  onReviewRegistration,
   onResetUserPassword,
   onUpdateUserRole,
   onDeleteUser
@@ -137,6 +145,47 @@ export function AccountsPage({
 
       {actor.permissions.includes("user:write") ? (
         <div className="split-layout">
+          <SectionCard title="待审核注册" eyebrow="Registration Review">
+            {pendingRegistrations.length === 0 ? (
+              <EmptyState
+                title="暂无待审核申请"
+                text="个人注册申请会先进入这里，审核通过后才能登录。"
+              />
+            ) : (
+              <div className="data-list">
+                {pendingRegistrations.map((user) => (
+                  <article key={user.id} className="user-card">
+                    <div>
+                      <strong>{user.displayName}</strong>
+                      <small>
+                        {user.username} · 学号 {user.identityNo}
+                        {user.phone ? ` · ${user.phone}` : ""}
+                      </small>
+                    </div>
+                    <div className="row-inline wrap">
+                      <StatusBadge tone="pending">待审核</StatusBadge>
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => void onReviewRegistration(user.id, "approve")}
+                      >
+                        批准
+                      </button>
+                      <button
+                        type="button"
+                        className="tertiary-button ghost-tone"
+                        onClick={() =>
+                          void onReviewRegistration(user.id, "reject", "资料未通过审核")
+                        }
+                      >
+                        驳回
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </SectionCard>
           <SectionCard title="新增成员" eyebrow="User Provisioning">
             <form
               className="form-grid compact"

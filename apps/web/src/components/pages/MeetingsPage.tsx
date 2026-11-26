@@ -6,6 +6,7 @@ import type {
   Meeting,
   MeetingAttendance,
   MeetingAttendanceStatus,
+  ManagedUser,
   NotificationItem,
   Project
 } from "../../types";
@@ -16,6 +17,7 @@ interface MeetingsPageProps {
   selectedProjectId: string;
   meetings: Meeting[];
   meetingAttendance: MeetingAttendance[];
+  users: ManagedUser[];
   notifications: NotificationItem[];
   onCreateMeeting: (payload: {
     projectId?: string;
@@ -43,6 +45,7 @@ interface MeetingsPageProps {
     projectId?: string;
   }) => Promise<void>;
   onMarkNotificationRead: (notificationId: string) => Promise<void>;
+  onOpenNotification: (notification: NotificationItem) => void;
 }
 
 export function MeetingsPage({
@@ -51,12 +54,14 @@ export function MeetingsPage({
   selectedProjectId,
   meetings,
   meetingAttendance,
+  users,
   notifications,
   onCreateMeeting,
   onUpdateMeetingMinutes,
   onUpdateMeetingAttendance,
   onPublishAnnouncement,
-  onMarkNotificationRead
+  onMarkNotificationRead,
+  onOpenNotification
 }: MeetingsPageProps) {
   const [meetingProjectId, setMeetingProjectId] = useState(selectedProjectId);
   const [announcementScope, setAnnouncementScope] = useState(selectedProjectId || "__all__");
@@ -74,8 +79,17 @@ export function MeetingsPage({
   });
   const [minutesDraft, setMinutesDraft] = useState<Record<string, string>>({});
   const attendanceMap = useMemo(
-    () => new Map(meetingAttendance.map((item) => [item.meetingId, item])),
-    [meetingAttendance]
+    () =>
+      new Map(
+        meetingAttendance
+          .filter((item) => item.actorId === actor.id)
+          .map((item) => [item.meetingId, item])
+      ),
+    [actor.id, meetingAttendance]
+  );
+  const attendeeNames = useMemo(
+    () => new Map(users.map((user) => [user.id, user.displayName])),
+    [users]
   );
   const projectNameMap = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
@@ -124,6 +138,33 @@ export function MeetingsPage({
                     <span>{new Date(meeting.startsAt).toLocaleString("zh-CN")}</span>
                     <span>{meeting.location}</span>
                   </div>
+                  {(meeting.createdBy === actor.id || actor.role === "lab_admin") &&
+                  meeting.participantIds.length > 0 ? (
+                    <details>
+                      <summary>查看参会响应（{meeting.participantIds.length} 人）</summary>
+                      <ul>
+                        {meeting.participantIds.map((id, index) => {
+                          const response = meetingAttendance.find(
+                            (item) => item.meetingId === meeting.id && item.actorId === id
+                          );
+                          const label =
+                            response?.status === "accepted"
+                              ? "参加"
+                              : response?.status === "declined"
+                                ? "不参加"
+                                : response?.status === "leave"
+                                  ? "请假"
+                                  : "待反馈";
+                          return (
+                            <li key={id}>
+                              {attendeeNames.get(id) ?? `参会人 ${index + 1}`} · {label}
+                              {response?.reason ? ` · ${response.reason}` : ""}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </details>
+                  ) : null}
                   {meeting.participantIds.includes(actor.id) ? (
                     <div className="meeting-attendance-row">
                       <span className="panel-tag">
@@ -223,6 +264,15 @@ export function MeetingsPage({
                     <small>{notificationTypeText(item.type)}</small>
                     <small>发布时间：{new Date(item.createdAt).toLocaleString("zh-CN")}</small>
                     <p>{item.content}</p>
+                    {item.relatedType === "file" && item.relatedId ? (
+                      <button
+                        type="button"
+                        className="tertiary-button"
+                        onClick={() => onOpenNotification(item)}
+                      >
+                        查看项目资料
+                      </button>
+                    ) : null}
                   </div>
                   {!item.readAt ? (
                     <button

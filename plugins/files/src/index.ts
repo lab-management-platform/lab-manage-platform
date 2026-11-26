@@ -92,6 +92,8 @@ interface FileVersionRequest {
 
 interface FileRepository {
   initialize(): Promise<void>;
+  canAccessProject?(projectId: string, actor: Actor): Promise<boolean>;
+  getFile(fileId: string, actor: Actor): Promise<LabFile | null>;
   listFiles(
     actor: Actor,
     filters: { search?: string; parentId?: string; projectId?: string }
@@ -168,6 +170,10 @@ class MemoryFileRepository implements FileRepository {
 
   async initialize(): Promise<void> {
     return Promise.resolve();
+  }
+
+  async getFile(fileId: string, actor: Actor) {
+    return this.files.find((file) => file.id === fileId && canReadFile(file, actor)) ?? null;
   }
 
   async listFiles(
@@ -268,11 +274,34 @@ class MemoryFileRepository implements FileRepository {
   }
 }
 
+// Project membership is checked at read time so a removed member loses access to old links.
+function projectFileScope(actor: number, manager: number) {
+  return `(f.project_id IS NULL OR $${manager} OR EXISTS (
+    SELECT 1 FROM projects.project_member pm
+    WHERE pm.project_id = f.project_id AND pm.user_id = $${actor}
+  ))`;
+}
+
+function canReadAllProjectFiles(actor: Actor) {
+  return ["lab_admin", "admin", "super_admin"].includes(actor.role);
+}
+
 class PostgresFileRepository implements FileRepository {
   private readonly pool: pg.Pool;
 
   constructor(databaseUrl: string) {
     this.pool = new pg.Pool({ connectionString: databaseUrl });
+  }
+
+  async canAccessProject(projectId: string, actor: Actor) {
+    const result = await this.pool.query(
+      `SELECT 1 FROM projects.project p WHERE p.id = $1 AND ($2 OR EXISTS (
+        SELECT 1 FROM projects.project_member pm
+        WHERE pm.project_id = p.id AND pm.user_id = $3
+      ))`,
+      [projectId, canReadAllProjectFiles(actor), actor.id]
+    );
+    return Boolean(result.rowCount);
   }
 
   async initialize(): Promise<void> {
@@ -432,9 +461,10 @@ class PostgresFileRepository implements FileRepository {
     const parentId = filters.parentId?.trim() || null;
     const projectId = filters.projectId?.trim() || null;
     const result = await this.pool.query(
-      `SELECT *
-       FROM files.lab_file
+      `SELECT f.*
+       FROM files.lab_file f
        WHERE (visibility <> 'private' OR owner_id = $3)
+         AND ${projectFileScope(3, 5)}
          AND (($2::text IS NULL) OR COALESCE(parent_id, '') = $2)
          AND (($4::text IS NULL) OR COALESCE(project_id, '') = $4)
          AND (
@@ -447,7 +477,7 @@ class PostgresFileRepository implements FileRepository {
          )
        ORDER BY node_type ASC, updated_at DESC
        LIMIT 300`,
-      [keyword, parentId, actor.id, projectId]
+      [keyword, parentId, actor.id, projectId, canReadAllProjectFiles(actor)]
     );
     return result.rows.map(mapFileRow);
   }
@@ -560,11 +590,7 @@ class PostgresFileRepository implements FileRepository {
   }
 
   async listVersions(fileId: string, actor: Actor): Promise<FileVersion[]> {
-    const access = await this.pool.query(
-      "SELECT * FROM files.lab_file WHERE id = $1 AND (visibility <> 'private' OR owner_id = $2)",
-      [fileId, actor.id]
-    );
-    if (!access.rows[0]) {
+    if (!(await this.getFile(fileId, actor))) {
       return [];
     }
 
@@ -579,6 +605,16 @@ class PostgresFileRepository implements FileRepository {
     return result.rows.map((row) => mapVersionRow(row, false));
   }
 
+  async getFile(fileId: string, actor: Actor) {
+    const result = await this.pool.query(
+      `SELECT f.* FROM files.lab_file f
+       WHERE f.id = $1 AND (f.visibility <> 'private' OR f.owner_id = $2)
+         AND ${projectFileScope(2, 3)}`,
+      [fileId, actor.id, canReadAllProjectFiles(actor)]
+    );
+    return result.rows[0] ? mapFileRow(result.rows[0]) : null;
+  }
+
   async getVersionDownload(
     fileId: string,
     versionId: string,
@@ -590,8 +626,9 @@ class PostgresFileRepository implements FileRepository {
        JOIN files.lab_file f ON f.id = v.file_id
        WHERE v.file_id = $1
          AND v.id = $2
-         AND (f.visibility <> 'private' OR f.owner_id = $3)`,
-      [fileId, versionId, actor.id]
+         AND (f.visibility <> 'private' OR f.owner_id = $3)
+         AND ${projectFileScope(3, 4)}`,
+      [fileId, versionId, actor.id, canReadAllProjectFiles(actor)]
     );
     return result.rows[0] ? mapVersionRow(result.rows[0], true) : null;
   }
@@ -783,7 +820,7 @@ export const filesPlugin: PluginManifest = {
       summary: "获取文件版本内容或 NAS 链接"
     }
   ],
-  eventsPublished: ["files.file.created", "files.version.created"],
+  eventsPublished: ["files.file.created", "files.project_file.published", "files.version.created"],
   eventsSubscribed: [],
   async activate(context) {
     const repository = createRepository();
@@ -921,6 +958,12 @@ export const filesPlugin: PluginManifest = {
             if (!actor) {
               return { status: 401, body: { error: "Unauthorized" } };
             }
+            if (
+              repository.canAccessProject &&
+              !(await repository.canAccessProject(params.id, actor))
+            ) {
+              return { status: 403, body: { error: "无权上传资料到该项目" } };
+            }
 
             const request = body as Partial<FileCreateRequest>;
             const error = validateCreateRequest({ ...request, projectId: params.id });
@@ -968,9 +1011,44 @@ export const filesPlugin: PluginManifest = {
                 uploaderId: actor.id,
                 uploaderName: actor.displayName ?? actor.username ?? actor.id
               });
+              if (file.visibility !== "private") {
+                try {
+                  await context.eventBus.publish({
+                    id: randomUUID(),
+                    type: "files.project_file.published",
+                    version: 1,
+                    occurredAt: file.createdAt,
+                    source: "files",
+                    payload: {
+                      fileId: file.id,
+                      projectId: params.id,
+                      title: file.title,
+                      actorId: actor.id
+                    }
+                  });
+                } catch (error) {
+                  context.logger.warn("files.project_notification.failed", {
+                    fileId: file.id,
+                    error: String(error)
+                  });
+                }
+              }
             }
 
             return { status: 201, body: file };
+          }
+        },
+        {
+          method: "GET",
+          path: "/files/:id",
+          permission: "file:read",
+          summary: "获取可访问的资料",
+          handler: async ({ actor, params }) => {
+            if (!actor) return { status: 401, body: { error: "Unauthorized" } };
+            const file = await repository.getFile(params.id, actor);
+            return file
+              ? { body: file }
+              : { status: 404, body: { error: "资料已移除或当前账号没有访问权限" } };
           }
         },
         {
@@ -993,6 +1071,9 @@ export const filesPlugin: PluginManifest = {
           handler: async ({ actor, params, body }) => {
             if (!actor) {
               return { status: 401, body: { error: "Unauthorized" } };
+            }
+            if (!(await repository.getFile(params.id, actor))) {
+              return { status: 404, body: { error: "资料已移除或当前账号没有访问权限" } };
             }
             const request = body as Partial<FileVersionRequest>;
             const error = validateVersionRequest(request);

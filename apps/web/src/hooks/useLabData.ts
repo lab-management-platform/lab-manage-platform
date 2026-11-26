@@ -64,6 +64,7 @@ export function useLabData(
   const [meetingAttendance, setMeetingAttendance] = useState<MeetingAttendance[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [pendingRegistrations, setPendingRegistrations] = useState<ManagedUser[]>([]);
   const [profile, setProfile] = useState<ManagedUser | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectTasks, setProjectTasks] = useState<ProjectTask[]>([]);
@@ -165,8 +166,14 @@ export function useLabData(
           .then(parseResponse<ManagedUser[]>)
           .then(setUsers)
       );
+      requests.push(
+        fetch(`${apiBase}/auth/registrations/pending`, { headers })
+          .then(parseResponse<ManagedUser[]>)
+          .then(setPendingRegistrations)
+      );
     } else {
       setUsers([]);
+      setPendingRegistrations([]);
     }
 
     const results = await Promise.allSettled(requests);
@@ -268,6 +275,7 @@ export function useLabData(
     notifications,
     unreadNotifications,
     users,
+    pendingRegistrations,
     profile,
     projects,
     projectTasks,
@@ -291,6 +299,36 @@ export function useLabData(
         headers: toAuthorization(token)
       }).then(parseResponse<FileVersion[]>);
       setFileVersions(payload);
+    },
+    async findNotifiedFile(fileId: string) {
+      if (!token) return undefined;
+      const file = await fetch(`${apiBase}/files/${encodeURIComponent(fileId)}`, {
+        headers: toAuthorization(token)
+      }).then(parseResponse<LabFile>);
+      setFiles((current) => [file, ...current.filter((item) => item.id !== file.id)]);
+      return file;
+    },
+    async downloadFileVersion(fileId: string, versionId: string) {
+      if (!token) return;
+      const version = await fetch(`${apiBase}/files/${fileId}/versions/${versionId}/download`, {
+        headers: toAuthorization(token)
+      }).then(parseResponse<FileVersion>);
+      if (version.contentBase64 !== undefined) {
+        const bytes = Uint8Array.from(atob(version.contentBase64), (char) => char.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = version.originalName;
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } else if (
+        version.driveUrl &&
+        ["http:", "https:"].includes(new URL(version.driveUrl).protocol)
+      ) {
+        window.open(version.driveUrl, "_blank", "noopener,noreferrer");
+      } else {
+        throw new Error("该版本没有可下载的文件或有效链接");
+      }
     },
     async createProjectFile(payload: {
       projectId: string;
@@ -811,6 +849,20 @@ export function useLabData(
       }).then(parseResponse<ProjectReportDetail>);
       setProjectReportDetail(payload);
     },
+    async reviewProjectReport(projectId: string, reportId: string, note: string) {
+      if (!token) return;
+      const report = await fetch(`${apiBase}/projects/${projectId}/reports/${reportId}/review`, {
+        method: "PATCH",
+        headers: toAuthorization(token),
+        body: JSON.stringify({ note })
+      }).then(parseResponse<ProgressReport>);
+      setProjectReportDetail((current) =>
+        current?.id === report.id ? { ...current, ...report } : current
+      );
+      setProgressReports((current) =>
+        current.map((item) => (item.id === report.id ? report : item))
+      );
+    },
     async updateContact(phone: string) {
       if (!token) return;
       const payload = await fetch(`${apiBase}/auth/profile/contact`, {
@@ -845,6 +897,16 @@ export function useLabData(
         body: JSON.stringify(payload)
       }).then(parseResponse<Actor>);
       setMessage("新成员账号已创建。");
+      await refreshAll();
+    },
+    async reviewRegistration(userId: string, action: "approve" | "reject", remark = "") {
+      if (!token) return;
+      await fetch(`${apiBase}/auth/registrations/${userId}`, {
+        method: "PATCH",
+        headers: toAuthorization(token),
+        body: JSON.stringify({ action, remark })
+      }).then(parseResponse<ManagedUser>);
+      setMessage(action === "approve" ? "注册申请已批准。" : "注册申请已驳回。");
       await refreshAll();
     },
     async resetUserPassword(userId: string, newPassword: string) {

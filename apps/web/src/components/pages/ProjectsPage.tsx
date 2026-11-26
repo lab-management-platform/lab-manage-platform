@@ -89,6 +89,7 @@ interface ProjectsPageProps {
     }>
   ) => Promise<void>;
   onCreateProjectTreeSnapshot: (projectId: string) => Promise<void>;
+  onReviewProjectReport: (projectId: string, reportId: string, note: string) => Promise<void>;
   onCreateProjectReport: (payload: {
     projectId: string;
     title: string;
@@ -187,6 +188,7 @@ export function ProjectsPage({
   onDeleteProjectNote,
   onSaveProjectTree,
   onCreateProjectTreeSnapshot,
+  onReviewProjectReport,
   onCreateProjectReport,
   onLoadProjectReportDetail,
   projectReportDetail
@@ -284,7 +286,14 @@ export function ProjectsPage({
   const canManageProject =
     actor.permissions.includes("project:write") ||
     currentMember?.memberRole === "owner" ||
+    currentMember?.memberRole === "leader" ||
     currentMember?.memberRole === "advisor";
+  const canSubmitReport = Boolean(currentMember || actor.permissions.includes("project:write"));
+  const [projectError, setProjectError] = useState("");
+  const [memberError, setMemberError] = useState("");
+  const [reportError, setReportError] = useState("");
+  const [reviewNote, setReviewNote] = useState("");
+  const [reviewError, setReviewError] = useState("");
   const canManageMembers =
     actor.permissions.includes("project:write") || currentMember?.memberRole === "advisor";
   const canWriteNotes =
@@ -442,19 +451,25 @@ export function ProjectsPage({
               className="form-grid"
               onSubmit={async (event) => {
                 event.preventDefault();
-                await onCreateProject({
-                  name: draftProject.name,
-                  description: draftProject.description,
-                  ownerName: draftProject.ownerName,
-                  ownerIdentityNo: draftProject.ownerIdentityNo,
-                  ownerUserId: draftProject.ownerUserId || undefined,
-                  advisorName: draftProject.advisorName || undefined,
-                  advisorIdentityNo: draftProject.advisorIdentityNo || undefined,
-                  advisorUserId: draftProject.advisorUserId || undefined,
-                  reportCycleDays: Number(draftProject.reportCycleDays || 14),
-                  documentUrl: draftProject.documentUrl || undefined,
-                  repositoryUrl: draftProject.repositoryUrl || undefined
-                });
+                setProjectError("");
+                try {
+                  await onCreateProject({
+                    name: draftProject.name,
+                    description: draftProject.description,
+                    ownerName: draftProject.ownerName,
+                    ownerIdentityNo: draftProject.ownerIdentityNo,
+                    ownerUserId: draftProject.ownerUserId || undefined,
+                    advisorName: draftProject.advisorName || undefined,
+                    advisorIdentityNo: draftProject.advisorIdentityNo || undefined,
+                    advisorUserId: draftProject.advisorUserId || undefined,
+                    reportCycleDays: Number(draftProject.reportCycleDays || 14),
+                    documentUrl: draftProject.documentUrl || undefined,
+                    repositoryUrl: draftProject.repositoryUrl || undefined
+                  });
+                } catch (error) {
+                  setProjectError(error instanceof Error ? error.message : "项目创建失败");
+                  return;
+                }
                 setDraftProject({
                   name: "",
                   description: "",
@@ -567,6 +582,7 @@ export function ProjectsPage({
                   }
                 />
               </label>
+              {projectError ? <p role="alert">{projectError}</p> : null}
               <button className="primary-button">创建项目</button>
             </form>
           </SectionCard>
@@ -704,38 +720,34 @@ export function ProjectsPage({
                         className="form-grid compact"
                         onSubmit={async (event) => {
                           event.preventDefault();
-                          await onAddProjectMember(activeProject.id, memberDraft);
+                          setMemberError("");
+                          try {
+                            await onAddProjectMember(activeProject.id, memberDraft);
+                          } catch (error) {
+                            setMemberError(error instanceof Error ? error.message : "成员添加失败");
+                            return;
+                          }
                           setMemberDraft({ userName: "", identityNo: "", memberRole: "member" });
                         }}
                       >
-                        <div className="member-entry-grid">
-                          <label>
-                            姓名
-                            <input
-                              placeholder="输入成员姓名"
-                              value={memberDraft.userName}
-                              onChange={(event) =>
-                                setMemberDraft((current) => ({
-                                  ...current,
-                                  userName: event.target.value
-                                }))
-                              }
-                            />
-                          </label>
-                          <label>
-                            学号 / 工号
-                            <input
-                              placeholder="输入学号或工号"
-                              value={memberDraft.identityNo}
-                              onChange={(event) =>
-                                setMemberDraft((current) => ({
-                                  ...current,
-                                  identityNo: event.target.value
-                                }))
-                              }
-                            />
-                          </label>
-                        </div>
+                        <IdentityLookupField
+                          label="选择项目成员"
+                          placeholder="搜索姓名或账号"
+                          users={users.filter(
+                            (user) =>
+                              user.active &&
+                              (!user.approvalStatus || user.approvalStatus === "approved") &&
+                              !members.some((member) => member.userId === user.id)
+                          )}
+                          value={{ name: memberDraft.userName, identityNo: memberDraft.identityNo }}
+                          onChange={(value) =>
+                            setMemberDraft((current) => ({
+                              ...current,
+                              userName: value.name,
+                              identityNo: value.identityNo
+                            }))
+                          }
+                        />
                         <label>
                           项目角色
                           <select
@@ -752,7 +764,8 @@ export function ProjectsPage({
                             <option value="observer">观察者</option>
                           </select>
                         </label>
-                        <button className="secondary-button">按姓名与学号/工号添加成员</button>
+                        {memberError ? <p role="alert">{memberError}</p> : null}
+                        <button className="secondary-button">添加成员</button>
                       </form>
                     ) : null}
                     <div className="data-list compact">
@@ -977,21 +990,31 @@ export function ProjectsPage({
                 </div>
               </SectionCard>
 
-              <SectionCard title="进度纪要" eyebrow="Progress Reports">
-                {activeProject && actor.permissions.includes("project:progress") ? (
+              <SectionCard title="进度汇报" eyebrow="Progress Reports">
+                {activeProject && canSubmitReport ? (
                   <form
                     className="form-grid compact"
                     onSubmit={async (event) => {
                       event.preventDefault();
-                      await onCreateProjectReport({
-                        projectId: activeProject.id,
-                        title: structuredReportDraft.title,
-                        content: structuredReportDraft.content,
-                        summary: structuredReportDraft.summary,
-                        nextPlan: structuredReportDraft.nextPlan,
-                        helpNeeded: structuredReportDraft.helpNeeded,
-                        memberWork: reportMemberDraft.filter((item) => item.workSummary.trim())
-                      });
+                      setReportError("");
+                      try {
+                        await onCreateProjectReport({
+                          projectId: activeProject.id,
+                          title: structuredReportDraft.title,
+                          content: structuredReportDraft.content,
+                          summary: structuredReportDraft.summary,
+                          nextPlan: structuredReportDraft.nextPlan,
+                          helpNeeded: structuredReportDraft.helpNeeded,
+                          memberWork: reportMemberDraft.filter(
+                            (item) =>
+                              item.workSummary.trim() &&
+                              (canManageProject || item.userId === actor.id)
+                          )
+                        });
+                      } catch (error) {
+                        setReportError(error instanceof Error ? error.message : "汇报提交失败");
+                        return;
+                      }
                       setStructuredReportDraft({
                         title: "",
                         content: "",
@@ -1002,6 +1025,7 @@ export function ProjectsPage({
                     }}
                   >
                     <input
+                      required
                       placeholder="本次进度标题"
                       value={structuredReportDraft.title}
                       onChange={(event) =>
@@ -1052,47 +1076,53 @@ export function ProjectsPage({
                       }
                     />
                     <div className="report-member-grid">
-                      {reportMemberDraft.map((item, index) => (
-                        <label key={item.userId ?? item.memberName} className="report-member-card">
-                          <strong>
-                            {item.memberName} · {item.memberIdentityNo}
-                          </strong>
-                          <select
-                            value={item.progressStatus}
-                            onChange={(event) =>
-                              setReportMemberDraft((current) =>
-                                current.map((member, memberIndex) =>
-                                  memberIndex === index
-                                    ? {
-                                        ...member,
-                                        progressStatus: event.target
-                                          .value as typeof item.progressStatus
-                                      }
-                                    : member
-                                )
-                              )
-                            }
+                      {reportMemberDraft.map((item, index) =>
+                        canManageProject || item.userId === actor.id ? (
+                          <label
+                            key={item.userId ?? item.memberName}
+                            className="report-member-card"
                           >
-                            <option value="todo">未开始</option>
-                            <option value="doing">进行中</option>
-                            <option value="done">已完成</option>
-                          </select>
-                          <textarea
-                            placeholder="填写该成员本周期完成的工作"
-                            value={item.workSummary}
-                            onChange={(event) =>
-                              setReportMemberDraft((current) =>
-                                current.map((member, memberIndex) =>
-                                  memberIndex === index
-                                    ? { ...member, workSummary: event.target.value }
-                                    : member
+                            <strong>
+                              {item.memberName} · {item.memberIdentityNo}
+                            </strong>
+                            <select
+                              value={item.progressStatus}
+                              onChange={(event) =>
+                                setReportMemberDraft((current) =>
+                                  current.map((member, memberIndex) =>
+                                    memberIndex === index
+                                      ? {
+                                          ...member,
+                                          progressStatus: event.target
+                                            .value as typeof item.progressStatus
+                                        }
+                                      : member
+                                  )
                                 )
-                              )
-                            }
-                          />
-                        </label>
-                      ))}
+                              }
+                            >
+                              <option value="todo">未开始</option>
+                              <option value="doing">进行中</option>
+                              <option value="done">已完成</option>
+                            </select>
+                            <textarea
+                              placeholder="填写该成员本周期完成的工作"
+                              value={item.workSummary}
+                              onChange={(event) =>
+                                setReportMemberDraft((current) =>
+                                  current.map((member, memberIndex) =>
+                                    memberIndex === index
+                                      ? { ...member, workSummary: event.target.value }
+                                      : member
+                                  )
+                                )
+                              }
+                            />
+                          </label>
+                        ) : null
+                      )}
                     </div>
+                    {reportError ? <p role="alert">{reportError}</p> : null}
                     <button className="secondary-button">提交结构化汇报</button>
                   </form>
                 ) : null}
@@ -1112,7 +1142,15 @@ export function ProjectsPage({
                           className="progress-card report-list-button"
                           onClick={async () => {
                             if (activeProject) {
-                              await onLoadProjectReportDetail(activeProject.id, report.id);
+                              setReviewNote("");
+                              setReviewError("");
+                              try {
+                                await onLoadProjectReportDetail(activeProject.id, report.id);
+                              } catch (error) {
+                                setReviewError(
+                                  error instanceof Error ? error.message : "无法打开汇报详情"
+                                );
+                              }
                             }
                           }}
                         >
@@ -1128,6 +1166,7 @@ export function ProjectsPage({
                   </div>
 
                   <div className="detail-card report-detail-card">
+                    {reviewError ? <p role="alert">{reviewError}</p> : null}
                     {!projectReportDetail ? (
                       <EmptyState
                         title="未选择汇报"
@@ -1136,6 +1175,49 @@ export function ProjectsPage({
                     ) : (
                       <>
                         <strong>{projectReportDetail.title}</strong>
+                        {projectReportDetail.status === "reviewed" ? (
+                          <div>
+                            <strong>
+                              已确认 · {projectReportDetail.reviewerName ?? "教师或管理员"}
+                            </strong>
+                            {projectReportDetail.reviewNote ? (
+                              <p>{projectReportDetail.reviewNote}</p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {activeProject &&
+                        projectReportDetail.status === "submitted" &&
+                        (actor.role === "professor" || actor.role === "lab_admin") ? (
+                          <form
+                            className="form-grid compact"
+                            onSubmit={async (event) => {
+                              event.preventDefault();
+                              setReviewError("");
+                              try {
+                                await onReviewProjectReport(
+                                  activeProject.id,
+                                  projectReportDetail.id,
+                                  reviewNote
+                                );
+                                setReviewNote("");
+                              } catch (error) {
+                                setReviewError(
+                                  error instanceof Error ? error.message : "确认汇报失败"
+                                );
+                              }
+                            }}
+                          >
+                            <label>
+                              点评（可选）
+                              <textarea
+                                value={reviewNote}
+                                maxLength={2000}
+                                onChange={(event) => setReviewNote(event.target.value)}
+                              />
+                            </label>
+                            <button className="secondary-button">确认汇报</button>
+                          </form>
+                        ) : null}
                         <div className="meta-grid">
                           <span>提交人：{projectReportDetail.authorName}</span>
                           <span>

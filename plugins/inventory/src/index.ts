@@ -120,10 +120,12 @@ interface InventoryRepository {
   listLoans(): Promise<InventoryLoan[]>;
   returnLoan(
     id: string,
-    actorId: string
+    actorId: string,
+    canManageInventory: boolean
   ): Promise<InventoryLoan | { error: string; status: number }>;
   createApplication(input: {
     actorId: string;
+    applicantName: string;
     materialId: string;
     quantity: number;
     reason?: string;
@@ -150,32 +152,32 @@ interface InventoryRepository {
 const seedMaterials: Material[] = [
   {
     id: "m-001",
-    name: "一次性丁腈手套",
-    spec: "M 码 / 100 只",
+    name: "杜邦跳线套装",
+    spec: "2.54 mm / 公对母 / 40 根",
     stock: 18,
     warnStock: 10,
     unit: "盒",
-    location: "A-01 安全柜",
+    location: "A-01 电子耗材柜",
     manager: "李老师"
   },
   {
     id: "m-002",
-    name: "移液枪枪头",
-    spec: "10uL / 无菌盒装",
+    name: "RJ45 水晶头",
+    spec: "六类非屏蔽 / 50 个",
     stock: 7,
     warnStock: 12,
     unit: "盒",
-    location: "B-03 试剂架",
+    location: "B-03 网络布线耗材架",
     manager: "王同学"
   },
   {
     id: "m-003",
-    name: "离心管",
-    spec: "1.5mL / 500 支",
+    name: "ESP32 开发板",
+    spec: "ESP32-WROOM-32 / Wi-Fi ＋ 蓝牙",
     stock: 26,
     warnStock: 8,
-    unit: "包",
-    location: "B-01 耗材柜",
+    unit: "块",
+    location: "B-01 嵌入式设备柜",
     manager: "王同学",
     categoryId: "category-equipment",
     categoryName: "器材",
@@ -184,13 +186,17 @@ const seedMaterials: Material[] = [
   },
   {
     id: "m-004",
-    name: "无水乙醇",
-    spec: "AR 500mL",
+    name: "USB-C 扩展坞",
+    spec: "HDMI / USB-A / 千兆网口",
     stock: 5,
     warnStock: 6,
-    unit: "瓶",
-    location: "C-02 危化柜",
-    manager: "李老师"
+    unit: "台",
+    location: "C-02 计算机配件柜",
+    manager: "李老师",
+    categoryId: "category-equipment",
+    categoryName: "器材",
+    returnRequired: true,
+    serialRequired: true
   }
 ];
 
@@ -198,11 +204,11 @@ const seedApplications: InventoryApplication[] = [
   {
     id: "a-1001",
     materialId: "m-002",
-    materialName: "移液枪枪头",
+    materialName: "RJ45 水晶头",
     applicantId: "student001",
     applicantName: "学生一号",
     quantity: 2,
-    reason: "细胞培养实验补充耗材",
+    reason: "计算机网络实验制作网线",
     status: "pending",
     createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString()
   }
@@ -302,12 +308,13 @@ class MemoryInventoryRepository implements InventoryRepository {
 
   async returnLoan(
     id: string,
-    actorId: string
+    actorId: string,
+    canManageInventory: boolean
   ): Promise<InventoryLoan | { error: string; status: number }> {
     const loan = this.loans.find((item) => item.id === id);
     if (!loan) return { status: 404, error: "Loan not found" };
     if (loan.status === "returned") return { status: 409, error: "Loan already returned" };
-    if (loan.borrowerId !== actorId && !actorId.includes("admin")) {
+    if (loan.borrowerId !== actorId && !canManageInventory) {
       return {
         status: 403,
         error: "Only borrower or inventory administrator can return this item"
@@ -333,6 +340,7 @@ class MemoryInventoryRepository implements InventoryRepository {
 
   async createApplication(input: {
     actorId: string;
+    applicantName: string;
     materialId: string;
     quantity: number;
     reason?: string;
@@ -350,7 +358,7 @@ class MemoryInventoryRepository implements InventoryRepository {
       materialId: material.id,
       materialName: material.name,
       applicantId: input.actorId,
-      applicantName: input.actorId,
+      applicantName: input.applicantName,
       quantity: input.quantity,
       reason: input.reason?.trim() || "未填写",
       status: "pending",
@@ -551,6 +559,29 @@ class PostgresInventoryRepository implements InventoryRepository {
         borrowed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         returned_at TIMESTAMPTZ
       );
+      -- The foundation migration may have already created a multi-line loan table.
+      ALTER TABLE inventory.loan ADD COLUMN IF NOT EXISTS application_id TEXT
+        UNIQUE REFERENCES inventory.application(id);
+      ALTER TABLE inventory.loan ADD COLUMN IF NOT EXISTS material_id TEXT
+        REFERENCES inventory.material(id);
+      ALTER TABLE inventory.loan ADD COLUMN IF NOT EXISTS borrower_id TEXT;
+      ALTER TABLE inventory.loan ADD COLUMN IF NOT EXISTS borrower_name TEXT;
+      ALTER TABLE inventory.loan ADD COLUMN IF NOT EXISTS quantity INTEGER CHECK (quantity > 0);
+      ALTER TABLE inventory.loan ADD COLUMN IF NOT EXISTS applicant_id TEXT;
+      ALTER TABLE inventory.loan ADD COLUMN IF NOT EXISTS reason TEXT;
+
+      DO $backfill$
+      BEGIN
+        IF to_regclass('core.app_user') IS NOT NULL THEN
+          UPDATE inventory.application AS application
+          SET applicant_name = account.display_name
+          FROM core.app_user AS account
+          WHERE application.applicant_id = account.id
+            AND application.applicant_name = '成员 ' || account.id
+            AND NULLIF(btrim(account.display_name), '') IS NOT NULL;
+        END IF;
+      END
+      $backfill$;
     `);
 
     for (const category of [
@@ -713,7 +744,17 @@ class PostgresInventoryRepository implements InventoryRepository {
       unit: string;
       location: string;
       manager: string;
-    }>("SELECT * FROM inventory.material ORDER BY id");
+      category_id: string | null;
+      category_name: string | null;
+      return_required: boolean | null;
+      serial_required: boolean | null;
+    }>(
+      `SELECT material.*, category.name AS category_name,
+              category.return_required, category.serial_required
+       FROM inventory.material AS material
+       LEFT JOIN inventory.item_category AS category ON category.id = material.category_id
+       ORDER BY material.id`
+    );
     return result.rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -722,7 +763,11 @@ class PostgresInventoryRepository implements InventoryRepository {
       warnStock: row.warn_stock,
       unit: row.unit,
       location: row.location,
-      manager: row.manager
+      manager: row.manager,
+      categoryId: row.category_id ?? undefined,
+      categoryName: row.category_name ?? undefined,
+      returnRequired: row.return_required ?? undefined,
+      serialRequired: row.serial_required ?? undefined
     }));
   }
 
@@ -768,7 +813,8 @@ class PostgresInventoryRepository implements InventoryRepository {
 
   async returnLoan(
     id: string,
-    actorId: string
+    actorId: string,
+    canManageInventory: boolean
   ): Promise<InventoryLoan | { error: string; status: number }> {
     const client = await this.pool.connect();
     try {
@@ -789,7 +835,7 @@ class PostgresInventoryRepository implements InventoryRepository {
         await client.query("ROLLBACK");
         return { status: 409, error: "Loan already returned" };
       }
-      if (loan.borrower_id !== actorId && !actorId.includes("admin")) {
+      if (loan.borrower_id !== actorId && !canManageInventory) {
         await client.query("ROLLBACK");
         return {
           status: 403,
@@ -827,6 +873,7 @@ class PostgresInventoryRepository implements InventoryRepository {
 
   async createApplication(input: {
     actorId: string;
+    applicantName: string;
     materialId: string;
     quantity: number;
     reason?: string;
@@ -856,7 +903,7 @@ class PostgresInventoryRepository implements InventoryRepository {
         materialId: material.id,
         materialName: material.name,
         applicantId: input.actorId,
-        applicantName: `成员 ${input.actorId}`,
+        applicantName: input.applicantName,
         projectId: undefined,
         quantity: input.quantity,
         reason: input.reason?.trim() || "未填写",
@@ -918,7 +965,7 @@ class PostgresInventoryRepository implements InventoryRepository {
         `SELECT m.stock, COALESCE(c.return_required, false) AS return_required
          FROM inventory.material m
          LEFT JOIN inventory.item_category c ON c.id = m.category_id
-         WHERE m.id = $1 FOR UPDATE`,
+         WHERE m.id = $1 FOR UPDATE OF m`,
         [application.material_id]
       );
       const material = materialResult.rows[0];
@@ -966,8 +1013,9 @@ class PostgresInventoryRepository implements InventoryRepository {
         );
         await client.query(
           `INSERT INTO inventory.loan
-            (id, application_id, material_id, borrower_id, borrower_name, quantity, due_at, status, borrowed_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'borrowed', now())`,
+            (id, application_id, material_id, borrower_id, borrower_name, quantity, due_at,
+             status, borrowed_at, applicant_id, reason)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'borrowed', now(), $4, $8)`,
           [
             randomUUID(),
             id,
@@ -975,7 +1023,8 @@ class PostgresInventoryRepository implements InventoryRepository {
             application.applicant_id,
             application.applicant_name,
             application.quantity,
-            dueAt
+            dueAt,
+            application.reason
           ]
         );
       }
@@ -1337,7 +1386,11 @@ export const inventoryPlugin: PluginManifest = {
           summary: "归还器材",
           handler: async ({ actor, params }) => {
             if (!actor) return { status: 401, body: { error: "Unauthorized" } };
-            const loan = await repository.returnLoan(params.id, actor.id);
+            const loan = await repository.returnLoan(
+              params.id,
+              actor.id,
+              actor.permissions.includes("inventory:approve")
+            );
             if (isRepositoryError(loan)) {
               return { status: loan.status, body: { error: loan.error } };
             }
@@ -1372,6 +1425,7 @@ export const inventoryPlugin: PluginManifest = {
 
             const application = await repository.createApplication({
               actorId: actor.id,
+              applicantName: actor.displayName?.trim() || actor.username || "未命名成员",
               materialId: request.materialId,
               quantity: request.quantity,
               reason: request.reason,

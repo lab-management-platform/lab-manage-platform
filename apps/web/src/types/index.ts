@@ -19,6 +19,7 @@ export type Permission =
   | "ai:manage";
 
 export type ApplicationStatus = "pending" | "approved" | "rejected";
+export type ApprovalStatus = "pending" | "approved" | "rejected";
 export type ProjectStatus = "pending" | "active" | "archived" | "completed";
 export type TaskStatus = "todo" | "in_progress" | "review" | "done";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -127,6 +128,7 @@ export interface ManagedUser {
   role: Role;
   identityProvider: string;
   active: boolean;
+  approvalStatus: ApprovalStatus;
   createdAt: string;
 }
 
@@ -360,6 +362,8 @@ export interface ProgressReport {
   nextPlan?: string;
   helpNeeded?: string;
   status?: "draft" | "submitted" | "reviewed" | "archived";
+  reviewNote?: string;
+  reviewerName?: string;
   createdAt: string;
   updatedAt: string;
 }

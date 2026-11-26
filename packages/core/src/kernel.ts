@@ -26,6 +26,10 @@ export class Kernel {
     this.eventBus = new InMemoryEventBus(options.logger);
   }
 
+  get auth(): AuthPort {
+    return this.options.auth;
+  }
+
   async register(plugin: PluginManifest): Promise<void> {
     const activated = await plugin.activate({
       eventBus: this.eventBus,

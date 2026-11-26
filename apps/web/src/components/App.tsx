@@ -50,6 +50,7 @@ export function App() {
   const [activeView, setActiveView] = useState<AppView>(initialHash.view ?? "dashboard");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(initialHash.projectId);
+  const [notifiedFileId, setNotifiedFileId] = useState("");
 
   const clearSession = () => {
     setToken("");
@@ -135,6 +136,31 @@ export function App() {
   }, [activeView, selectedProjectId]);
 
   useEffect(() => {
+    const xmuComplete = window.location.pathname === "/auth/xmu/complete";
+    if (xmuComplete) {
+      const code = new URLSearchParams(window.location.search).get("code");
+      if (!code) return;
+      void (async () => {
+        try {
+          const response = await fetch(`${apiBase}/auth/xmu/exchange`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code })
+          });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error ?? "厦大统一身份认证登录失败");
+          setToken(payload.token);
+          setActor(payload.actor);
+          sessionStorage.setItem("lab_token", payload.token);
+          sessionStorage.setItem("lab_actor", JSON.stringify(payload.actor));
+          window.history.replaceState({}, "", "/");
+        } catch (error) {
+          lab.setMessage(error instanceof Error ? error.message : "厦大统一身份认证登录失败");
+          window.history.replaceState({}, "", "/");
+        }
+      })();
+      return;
+    }
     if (!oidcEnabled) return;
     void (async () => {
       const callback = window.location.pathname === "/auth/callback";
@@ -161,14 +187,13 @@ export function App() {
     }
   };
 
-  async function login(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function loginWithCredentials(loginUsername: string, loginPassword: string) {
     setAuthLoading(true);
     try {
       const response = await fetch(`${apiBase}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: loginUsername, password: loginPassword })
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -187,6 +212,10 @@ export function App() {
     }
   }
 
+  async function login(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await loginWithCredentials(username, password);
+  }
   function logout() {
     if (oidcEnabled) {
       void oidcManager.signoutRedirect();
@@ -195,7 +224,7 @@ export function App() {
   }
 
   if (!actor) {
-    if (oidcEnabled) return <OidcLogin />;
+    if (oidcEnabled) return <OidcLogin onLocalLogin={loginWithCredentials} />;
     return (
       <LoginForm
         username={username}
@@ -284,6 +313,7 @@ export function App() {
               onCreateProjectTreeSnapshot={lab.createProjectTreeSnapshot}
               onCreateProjectReport={lab.createProjectReport}
               onLoadProjectReportDetail={lab.loadProjectReportDetail}
+              onReviewProjectReport={lab.reviewProjectReport}
               projectReportDetail={lab.projectReportDetail}
             />
           ) : null}
@@ -314,7 +344,9 @@ export function App() {
               selectedProjectId={selectedProjectId}
               files={lab.files}
               versions={lab.fileVersions}
+              initialFileId={notifiedFileId}
               onSelectFile={lab.loadFileVersions}
+              onDownloadVersion={lab.downloadFileVersion}
               onCreateProjectFile={lab.createProjectFile}
               onAddFileVersion={lab.addFileVersion}
             />
@@ -327,12 +359,26 @@ export function App() {
               selectedProjectId={selectedProjectId}
               meetings={lab.meetings}
               meetingAttendance={lab.meetingAttendance}
+              users={lab.users}
               notifications={lab.notifications}
               onCreateMeeting={lab.createMeeting}
               onUpdateMeetingMinutes={lab.updateMeetingMinutes}
               onUpdateMeetingAttendance={lab.updateMeetingAttendance}
               onPublishAnnouncement={lab.publishAnnouncement}
               onMarkNotificationRead={lab.markNotificationRead}
+              onOpenNotification={async (notification) => {
+                if (!notification.relatedId) return;
+                try {
+                  const file = await lab.findNotifiedFile(notification.relatedId);
+                  if (!file) throw new Error("资料已移除或当前账号没有访问权限");
+                  setSelectedProjectId(file.projectId ?? "");
+                  setNotifiedFileId(file.id);
+                  setActiveView("files");
+                  void lab.markNotificationRead(notification.id).catch(() => {});
+                } catch (error) {
+                  lab.setMessage(error instanceof Error ? error.message : "无法打开项目资料");
+                }
+              }}
             />
           ) : null}
 
@@ -358,9 +404,11 @@ export function App() {
               actor={actor}
               profile={lab.profile}
               users={lab.users}
+              pendingRegistrations={lab.pendingRegistrations}
               onUpdateContact={lab.updateContact}
               onChangePassword={lab.changePassword}
               onRegisterUser={lab.registerUser}
+              onReviewRegistration={lab.reviewRegistration}
               onResetUserPassword={lab.resetUserPassword}
               onUpdateUserRole={lab.updateUserRole}
               onDeleteUser={lab.deleteUser}

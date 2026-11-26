@@ -119,4 +119,8 @@ export function actorFromOidcUser(user: User): Actor {
   };
 }
 
-export const oidcEnabled = import.meta.env.VITE_AUTH_MODE === "oidc";
+export const authMode = import.meta.env.VITE_AUTH_MODE ?? "local";
+export const oidcEnabled = authMode === "oidc" || authMode === "hybrid";
+export const localLoginEnabled = authMode === "local" || authMode === "hybrid";
+export const publicRegistrationEnabled = localLoginEnabled;
+export const xmuCasEnabled = import.meta.env.VITE_XMU_CAS_ENABLED === "true";

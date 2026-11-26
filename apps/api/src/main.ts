@@ -3,11 +3,22 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-config({ path: path.resolve(__dirname, "../../../.env") });
+if (!process.env.VITEST && process.env.NODE_ENV !== "test") {
+  config({ path: path.resolve(__dirname, "../../../.env") });
+}
 
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import { randomUUID } from "node:crypto";
 import { createKernel } from "./kernel.js";
+
+type CasExchange = { token: string; actor: unknown; expiresAt: number };
+const casExchanges = new Map<string, CasExchange>();
+
+function xmlValue(xml: string, tag: string): string | null {
+  const match = xml.match(new RegExp(`<[^>]*${tag}[^>]*>([^<]+)</`));
+  return match?.[1]?.trim() ?? null;
+}
 
 export async function createApiApp() {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" });
@@ -40,6 +51,121 @@ export async function createApiApp() {
     }
 
     return session;
+  });
+
+  app.get("/auth/xmu/start", async (request, reply) => {
+    if (process.env.XMU_CAS_ENABLED !== "true") {
+      return reply.code(404).send({ error: "XMU CAS is not enabled" });
+    }
+    const service = process.env.XMU_CAS_SERVICE_URL;
+    const loginUrl = process.env.XMU_CAS_LOGIN_URL ?? "https://ids.xmu.edu.cn/authserver/login";
+    if (!service) {
+      return reply.code(503).send({ error: "XMU_CAS_SERVICE_URL is not configured" });
+    }
+    const url = new URL(loginUrl);
+    url.searchParams.set("service", service);
+    return reply.redirect(url.toString());
+  });
+
+  app.get("/auth/xmu/callback", async (request, reply) => {
+    if (process.env.XMU_CAS_ENABLED !== "true") {
+      return reply.code(404).send({ error: "XMU CAS is not enabled" });
+    }
+    const query = request.query as { ticket?: string; service?: string };
+    const service = process.env.XMU_CAS_SERVICE_URL;
+    const validateUrl =
+      process.env.XMU_CAS_VALIDATE_URL ?? "https://ids.xmu.edu.cn/authserver/serviceValidate";
+    const frontendUrl =
+      process.env.XMU_CAS_FRONTEND_URL ?? new URL("/", service ?? "http://localhost/").origin;
+    if (!service || !query.ticket) {
+      return reply.code(400).send({ error: "CAS ticket and service are required" });
+    }
+    if (query.service && query.service !== service) {
+      return reply.code(400).send({ error: "CAS service mismatch" });
+    }
+
+    const url = new URL(validateUrl);
+    url.searchParams.set("ticket", query.ticket);
+    url.searchParams.set("service", service);
+    const response = await fetch(url);
+    const xml = await response.text();
+    const subject = xmlValue(xml, "user");
+    if (!response.ok || !subject || !xml.includes("authenticationSuccess")) {
+      return reply.code(401).send({ error: "XMU CAS authentication failed" });
+    }
+    if (!kernel.auth.loginExternal) {
+      return reply.code(409).send({ error: "XMU CAS account linking is unavailable" });
+    }
+    const session = await kernel.auth.loginExternal("xmu-cas", subject, subject);
+    if (!session) {
+      return reply.code(403).send({
+        error: "XMU account is authenticated but is not yet an approved lab member",
+        subject
+      });
+    }
+    const code = randomUUID();
+    casExchanges.set(code, { ...session, expiresAt: Date.now() + 120_000 });
+    const frontendBase = frontendUrl.endsWith("/") ? frontendUrl.slice(0, -1) : frontendUrl;
+    return reply.redirect(`${frontendBase}/auth/xmu/complete?code=${encodeURIComponent(code)}`);
+  });
+
+  app.post("/auth/xmu/exchange", async (request, reply) => {
+    const body = request.body as { code?: string };
+    const exchange = body.code ? casExchanges.get(body.code) : undefined;
+    if (!body.code || !exchange || exchange.expiresAt < Date.now()) {
+      if (body.code) casExchanges.delete(body.code);
+      return reply.code(401).send({ error: "CAS exchange code is invalid or expired" });
+    }
+    casExchanges.delete(body.code);
+    return exchange;
+  });
+
+  // 个人注册不直接创建可登录账号，必须经过管理员审核。
+  app.post("/auth/registration", async (request, reply) => {
+    const body = request.body as Partial<{
+      username: string;
+      password: string;
+      identityType: "student_no" | "employee_no";
+      identityNo: string;
+      displayName: string;
+      phone: string;
+      reason: string;
+    }>;
+    if (
+      !body.username ||
+      !body.password ||
+      !body.identityType ||
+      !body.identityNo ||
+      !body.displayName
+    ) {
+      return reply.code(400).send({
+        error: "username, password, identityType, identityNo and displayName are required"
+      });
+    }
+    if (!kernel.auth.submitRegistration) {
+      return reply
+        .code(409)
+        .send({ error: "public registration is unavailable in the current authentication mode" });
+    }
+    try {
+      const result = await kernel.auth.submitRegistration({
+        username: body.username,
+        password: body.password,
+        identityType: body.identityType,
+        identityNo: body.identityNo,
+        displayName: body.displayName,
+        phone: body.phone,
+        reason: body.reason
+      });
+      return reply.code(202).send({
+        ...result,
+        message: "注册申请已提交，请等待管理员审核。"
+      });
+    } catch (error) {
+      return reply
+        .code(error instanceof Error && error.message.includes("exists") ? 409 : 400)
+        .send({ error: error instanceof Error ? error.message : "registration request failed" });
+    }
   });
 
   app.get("/auth/me", async (request, reply) => {
@@ -208,6 +334,52 @@ export async function createApiApp() {
 
     const query = request.query as Partial<{ search: string; includeInactive: string }>;
     return kernel.listUsers(query.search, query.includeInactive === "true");
+  });
+
+  app.get("/auth/registrations/pending", async (request, reply) => {
+    const authorization = Array.isArray(request.headers.authorization)
+      ? request.headers.authorization[0]
+      : request.headers.authorization;
+    const actor = await kernel.authenticate(authorization ?? "");
+    if (!actor) return reply.code(401).send({ error: "Unauthorized" });
+    try {
+      kernel.assertPermission(actor, "user:write");
+    } catch {
+      return reply.code(403).send({ error: "Permission denied: user:write" });
+    }
+    if (!kernel.auth.listPendingRegistrations) return reply.send([]);
+    return kernel.auth.listPendingRegistrations();
+  });
+
+  app.patch("/auth/registrations/:id", async (request, reply) => {
+    const authorization = Array.isArray(request.headers.authorization)
+      ? request.headers.authorization[0]
+      : request.headers.authorization;
+    const actor = await kernel.authenticate(authorization ?? "");
+    if (!actor) return reply.code(401).send({ error: "Unauthorized" });
+    try {
+      kernel.assertPermission(actor, "user:write");
+    } catch {
+      return reply.code(403).send({ error: "Permission denied: user:write" });
+    }
+    if (!kernel.auth.reviewRegistration)
+      return reply.code(409).send({ error: "registration review is unavailable" });
+    const body = request.body as Partial<{ action: "approve" | "reject"; remark: string }>;
+    if (!body.action || !["approve", "reject"].includes(body.action)) {
+      return reply.code(400).send({ error: "action must be approve or reject" });
+    }
+    try {
+      return await kernel.auth.reviewRegistration(
+        (request.params as { id: string }).id,
+        body.action,
+        actor.id,
+        body.remark
+      );
+    } catch (error) {
+      return reply
+        .code(error instanceof Error && error.message.includes("not found") ? 404 : 400)
+        .send({ error: error instanceof Error ? error.message : "registration review failed" });
+    }
   });
 
   app.post("/auth/register", async (request, reply) => {
@@ -416,7 +588,17 @@ export async function createApiApp() {
           }
 
           if (route.permission && actor) {
-            kernel.assertPermission(actor, route.permission);
+            try {
+              kernel.assertPermission(actor, route.permission);
+            } catch (error) {
+              if (
+                error instanceof Error &&
+                error.message === `Permission denied: ${route.permission}`
+              ) {
+                return reply.code(403).send({ error: error.message });
+              }
+              throw error;
+            }
           }
 
           const result = await route.handler({

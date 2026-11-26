@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.2
+          args: ["start", "--import-realm"]
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: lab-management-secrets
+          env:
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: jdbc:postgresql://postgres:5432/lab_management
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: lab-management-secrets
+                  key: POSTGRES_USER
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lab-management-secrets
+                  key: POSTGRES_PASSWORD
+            - name: KC_HOSTNAME
+              value: lab.wuosu.xyz
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HTTP_RELATIVE_PATH
+              value: /auth
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: lab-management-secrets
+                  key: KEYCLOAK_ADMIN_USERNAME
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lab-management-secrets
+                  key: KEYCLOAK_ADMIN_PASSWORD
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import/realm-lab.json
+              subPath: realm-lab.json
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+data:
+  realm-lab.json: |
+    {"realm":"lab","enabled":true,"displayName":"实验室管理平台","registrationAllowed":false,"resetPasswordAllowed":true,"clients":[{"clientId":"lab-web","name":"实验室管理平台 Web","enabled":true,"protocol":"openid-connect","publicClient":true,"standardFlowEnabled":true,"directAccessGrantsEnabled":false,"redirectUris":["https://lab.wuosu.xyz/*"],"webOrigins":["https://lab.wuosu.xyz"],"attributes":{"pkce.code.challenge.method":"S256"}}],"roles":{"realm":[{"name":"lab_admin"},{"name":"professor"},{"name":"student"}]}}

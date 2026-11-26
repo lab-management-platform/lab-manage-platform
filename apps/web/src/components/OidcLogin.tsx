@@ -1,11 +1,55 @@
-import { useState } from "react";
-import { oidcManager } from "../auth/oidc";
+import { useState, type SyntheticEvent } from "react";
+import {
+  localLoginEnabled,
+  oidcManager,
+  publicRegistrationEnabled,
+  xmuCasEnabled
+} from "../auth/oidc";
+import { apiBase } from "../utils/helpers";
+import { RegistrationForm } from "./RegistrationForm";
 
-export function OidcLogin() {
+interface OidcLoginProps {
+  onLocalLogin?: (username: string, password: string) => Promise<void>;
+}
+
+export function OidcLogin({ onLocalLogin }: OidcLoginProps) {
   const [loading, setLoading] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [message, setMessage] = useState("");
+  const [credentials, setCredentials] = useState({ username: "", password: "" });
   async function login() {
     setLoading(true);
-    await oidcManager.signinRedirect();
+    try {
+      await oidcManager.signinRedirect();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "无法打开统一身份认证");
+      setLoading(false);
+    }
+  }
+
+  async function submitLocalLogin(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!onLocalLogin) return;
+    setLoading(true);
+    try {
+      await onLocalLogin(credentials.username, credentials.password);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "登录失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (registering) {
+    return (
+      <RegistrationForm
+        onBack={() => setRegistering(false)}
+        onSubmitted={(notice) => {
+          setMessage(notice);
+          setRegistering(false);
+        }}
+      />
+    );
   }
 
   return (
@@ -23,6 +67,38 @@ export function OidcLogin() {
         <button className="primary" type="button" onClick={login} disabled={loading}>
           {loading ? "正在跳转..." : "使用统一身份认证登录"}
         </button>
+        {xmuCasEnabled ? (
+          <a className="secondary-button" href={`${apiBase}/auth/xmu/start`}>
+            使用厦门大学统一身份认证
+          </a>
+        ) : null}
+        {localLoginEnabled && onLocalLogin ? (
+          <form className="inline-login-form" onSubmit={submitLocalLogin}>
+            <div className="login-divider">或使用平台账号</div>
+            <input
+              required
+              placeholder="账号 / 学号"
+              value={credentials.username}
+              onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
+            />
+            <input
+              required
+              type="password"
+              placeholder="密码"
+              value={credentials.password}
+              onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+            />
+            <button className="secondary-button" disabled={loading}>
+              平台账号登录
+            </button>
+          </form>
+        ) : null}
+        {publicRegistrationEnabled ? (
+          <button type="button" className="forgot-link" onClick={() => setRegistering(true)}>
+            个人注册 / 申请加入
+          </button>
+        ) : null}
+        {message ? <span className="login-message">{message}</span> : null}
       </section>
     </main>
   );

@@ -1,0 +1,111 @@
+import { useState, type SyntheticEvent } from "react";
+import { apiBase } from "../utils/helpers";
+
+interface RegistrationFormProps {
+  onBack: () => void;
+  onSubmitted: (message: string) => void;
+}
+
+export function RegistrationForm({ onBack, onSubmitted }: RegistrationFormProps) {
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [registration, setRegistration] = useState({
+    username: "",
+    password: "",
+    identityNo: "",
+    displayName: "",
+    phone: ""
+  });
+
+  async function submitRegistration(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      const response = await fetch(`${apiBase}/auth/registration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...registration,
+          identityType: "student_no",
+          reason: "个人申请加入实验室"
+        })
+      });
+      const payload = (await response.json()) as { error?: string; message?: string };
+      if (!response.ok) throw new Error(payload.error ?? "注册申请提交失败");
+      onSubmitted(payload.message ?? "注册申请已提交，请等待管理员审核");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "注册申请提交失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="login-shell">
+      <form className="login-panel" onSubmit={submitRegistration} autoComplete="off">
+        <div className="brand login-brand">
+          <span className="brand-glyph">◈</span>
+          <div>
+            <strong>实验室管理平台</strong>
+            <span>Lab Ops Console</span>
+          </div>
+        </div>
+        <h1>申请加入</h1>
+        <p>提交后由实验室管理员审核，审核通过后才能登录。</p>
+        <label>
+          登录名
+          <input
+            required
+            value={registration.username}
+            onChange={(e) => setRegistration({ ...registration, username: e.target.value })}
+          />
+        </label>
+        <label>
+          姓名
+          <input
+            required
+            value={registration.displayName}
+            onChange={(e) => setRegistration({ ...registration, displayName: e.target.value })}
+          />
+        </label>
+        <label>
+          学号
+          <input
+            required
+            value={registration.identityNo}
+            onChange={(e) => setRegistration({ ...registration, identityNo: e.target.value })}
+          />
+        </label>
+        <label>
+          手机号（可选）
+          <input
+            value={registration.phone}
+            onChange={(e) => setRegistration({ ...registration, phone: e.target.value })}
+          />
+        </label>
+        <label>
+          密码
+          <input
+            required
+            type="password"
+            autoComplete="new-password"
+            minLength={8}
+            value={registration.password}
+            onChange={(e) => setRegistration({ ...registration, password: e.target.value })}
+          />
+        </label>
+        <button className="primary" disabled={loading}>
+          {loading ? "提交中..." : "提交注册申请"}
+        </button>
+        {message ? (
+          <span className="login-message" role="alert">
+            {message}
+          </span>
+        ) : null}
+        <button type="button" className="forgot-link" onClick={onBack} disabled={loading}>
+          返回登录
+        </button>
+      </form>
+    </main>
+  );
+}
