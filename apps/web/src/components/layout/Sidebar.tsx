@@ -1,6 +1,6 @@
 import { navItems, type AppView } from "../../config/navigation";
 import { roleText } from "../../utils/helpers";
-import type { Actor } from "../../types";
+import type { Actor, Role } from "../../types";
 
 interface SidebarProps {
   actor: Actor;
@@ -10,6 +10,13 @@ interface SidebarProps {
   mobileNavOpen: boolean;
 }
 
+// 将历史遗留角色归一到 navigation 支持的三种角色
+function normalizeRole(role: Role): "student" | "professor" | "lab_admin" {
+  if (role === "member") return "student";
+  if (role === "admin" || role === "super_admin") return "lab_admin";
+  return role;
+}
+
 export function Sidebar({
   actor,
   activeView,
@@ -17,9 +24,10 @@ export function Sidebar({
   onToggleMobileNav,
   mobileNavOpen
 }: SidebarProps) {
+  const normalizedRole = normalizeRole(actor.role);
   const allowedItems = navItems.filter(
     (item) =>
-      item.roles.includes(actor.role) &&
+      item.roles.includes(normalizedRole) &&
       (!item.permission || actor.permissions.includes(item.permission))
   );
 

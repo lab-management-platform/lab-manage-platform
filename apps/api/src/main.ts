@@ -1,3 +1,12 @@
+import { config } from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+if (!process.env.VITEST && process.env.NODE_ENV !== "test") {
+  config({ path: path.resolve(__dirname, "../../../.env") });
+}
+
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { randomUUID } from "node:crypto";
