@@ -88,7 +88,6 @@ export function FilesPage({
       });
     }
     // Resolve the file selected by the notification when this view opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFileId]);
   const [draft, setDraft] = useState({
     title: "",

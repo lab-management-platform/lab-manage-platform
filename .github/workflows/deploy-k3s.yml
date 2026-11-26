@@ -50,7 +50,21 @@ jobs:
     needs: publish
     runs-on: ubuntu-latest
     steps:
+      - name: Check K3s deployment secrets
+        id: check-secrets
+        env:
+          K3S_HOST: ${{ secrets.K3S_HOST }}
+          K3S_USER: ${{ secrets.K3S_USER }}
+          K3S_SSH_PRIVATE_KEY: ${{ secrets.K3S_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -n "$K3S_HOST" ] && [ -n "$K3S_USER" ] && [ -n "$K3S_SSH_PRIVATE_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping K3s deployment because K3S_HOST/K3S_USER/K3S_SSH_PRIVATE_KEY secrets are not configured."
+          fi
       - name: Deploy manifests to K3s server
+        if: steps.check-secrets.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.2.2
         env:
           SHA: ${{ github.sha }}
