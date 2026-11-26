@@ -579,7 +579,17 @@ export async function createApiApp() {
           }
 
           if (route.permission && actor) {
-            kernel.assertPermission(actor, route.permission);
+            try {
+              kernel.assertPermission(actor, route.permission);
+            } catch (error) {
+              if (
+                error instanceof Error &&
+                error.message === `Permission denied: ${route.permission}`
+              ) {
+                return reply.code(403).send({ error: error.message });
+              }
+              throw error;
+            }
           }
 
           const result = await route.handler({

@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { EmptyState, SectionCard, StatusBadge } from "../shared/Ui";
 import {
   fileCategoryText,
@@ -27,7 +27,9 @@ interface FilesPageProps {
   selectedProjectId: string;
   files: LabFile[];
   versions: FileVersion[];
+  initialFileId: string;
   onSelectFile: (fileId: string) => Promise<void>;
+  onDownloadVersion: (fileId: string, versionId: string) => Promise<void>;
   onCreateProjectFile: (payload: {
     projectId: string;
     title: string;
@@ -69,13 +71,25 @@ export function FilesPage({
   selectedProjectId,
   files,
   versions,
+  initialFileId,
   onSelectFile,
+  onDownloadVersion,
   onCreateProjectFile,
   onAddFileVersion
 }: FilesPageProps) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
-  const [selectedFileId, setSelectedFileId] = useState("");
+  const [selectedFileId, setSelectedFileId] = useState(initialFileId);
+  const [fileError, setFileError] = useState("");
+  useEffect(() => {
+    if (initialFileId) {
+      void onSelectFile(initialFileId).catch((error) => {
+        setFileError(error instanceof Error ? error.message : "无法读取资料版本");
+      });
+    }
+    // Resolve the file selected by the notification when this view opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFileId]);
   const [draft, setDraft] = useState({
     title: "",
     category: "record" as const,
@@ -625,27 +639,36 @@ export function FilesPage({
                   </form>
                 ) : null}
                 <div className="version-stack">
-                  {versions.length === 0 ? (
+                  {fileError ? <p role="alert">{fileError}</p> : null}
+                  {versions.filter((version) => version.fileId === selectedFile.id).length === 0 ? (
                     <EmptyState title="暂无版本记录" text="选择文件后会加载该资料的版本列表。" />
                   ) : (
-                    versions.map((version) => (
-                      <article key={version.id} className="version-item">
-                        <div>
-                          <strong>版本 {version.version}</strong>
-                          <small>{version.changeNote || "无更新说明"}</small>
-                        </div>
-                        {version.driveUrl ? (
-                          <a
-                            href={version.driveUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="icon-only-link"
+                    versions
+                      .filter((version) => version.fileId === selectedFile.id)
+                      .map((version) => (
+                        <article key={version.id} className="version-item">
+                          <div>
+                            <strong>版本 {version.version}</strong>
+                            <small>{version.changeNote || "无更新说明"}</small>
+                          </div>
+                          <button
+                            type="button"
+                            className="tertiary-button"
+                            onClick={async () => {
+                              setFileError("");
+                              try {
+                                await onDownloadVersion(selectedFile.id, version.id);
+                              } catch (error) {
+                                setFileError(
+                                  error instanceof Error ? error.message : "资料下载失败"
+                                );
+                              }
+                            }}
                           >
-                            <span aria-hidden="true">↓</span>
-                          </a>
-                        ) : null}
-                      </article>
-                    ))
+                            {version.driveUrl ? "打开链接" : "下载文件"}
+                          </button>
+                        </article>
+                      ))
                   )}
                 </div>
               </>

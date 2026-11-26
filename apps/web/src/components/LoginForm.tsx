@@ -1,4 +1,5 @@
 import { useState, type SyntheticEvent } from "react";
+import { RegistrationForm } from "./RegistrationForm";
 
 interface LoginFormProps {
   username: string;
@@ -36,6 +37,20 @@ export function LoginForm({
   onResetPassword
 }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [registrationNotice, setRegistrationNotice] = useState("");
+
+  if (registering) {
+    return (
+      <RegistrationForm
+        onBack={() => setRegistering(false)}
+        onSubmitted={(notice) => {
+          setRegistrationNotice(notice);
+          setRegistering(false);
+        }}
+      />
+    );
+  }
 
   if (resetMode) {
     return (
@@ -173,10 +188,15 @@ export function LoginForm({
         <button className="primary" disabled={loading}>
           {loading ? "登录中..." : "登录"}
         </button>
-        <span className="login-message">{message}</span>
+        <span className="login-message" role="status">
+          {registrationNotice || message}
+        </span>
 
         <button type="button" className="forgot-link" onClick={() => setResetMode(true)}>
           忘记密码？
+        </button>
+        <button type="button" className="forgot-link" onClick={() => setRegistering(true)}>
+          个人注册 / 申请加入
         </button>
       </form>
     </main>

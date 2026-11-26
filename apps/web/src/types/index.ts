@@ -362,6 +362,8 @@ export interface ProgressReport {
   nextPlan?: string;
   helpNeeded?: string;
   status?: "draft" | "submitted" | "reviewed" | "archived";
+  reviewNote?: string;
+  reviewerName?: string;
   createdAt: string;
   updatedAt: string;
 }

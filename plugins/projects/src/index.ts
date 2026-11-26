@@ -94,6 +94,8 @@ interface ProgressReport {
   nextPlan?: string;
   helpNeeded?: string;
   status?: "draft" | "submitted" | "reviewed" | "archived";
+  reviewNote?: string;
+  reviewerName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -286,6 +288,12 @@ interface ProjectRepository {
   ): Promise<ProjectNote | null>;
   removeNote(projectId: string, noteId: string): Promise<void>;
   listProgress(projectId: string): Promise<ProgressReport[]>;
+  reviewProgress(
+    projectId: string,
+    reportId: string,
+    note: string,
+    reviewer: string
+  ): Promise<ProgressReport | null>;
   createProgress(
     projectId: string,
     authorId: string,
@@ -658,6 +666,20 @@ class MemoryProjectRepository implements ProjectRepository {
     return this.progressReports.filter((report) => report.projectId === projectId);
   }
 
+  async reviewProgress(projectId: string, reportId: string, note: string, reviewer: string) {
+    const report = this.progressReports.find(
+      (item) => item.projectId === projectId && item.id === reportId && item.status === "submitted"
+    );
+    if (!report) return null;
+    Object.assign(report, {
+      status: "reviewed",
+      reviewNote: note,
+      reviewerName: reviewer,
+      updatedAt: new Date().toISOString()
+    });
+    return report;
+  }
+
   async createProgress(
     projectId: string,
     authorId: string,
@@ -865,6 +887,8 @@ class PostgresProjectRepository implements ProjectRepository {
       ALTER TABLE projects.progress_report ADD COLUMN IF NOT EXISTS next_plan TEXT NOT NULL DEFAULT '';
       ALTER TABLE projects.progress_report ADD COLUMN IF NOT EXISTS help_needed TEXT NOT NULL DEFAULT '';
       ALTER TABLE projects.progress_report ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'submitted';
+      ALTER TABLE projects.progress_report ADD COLUMN IF NOT EXISTS review_note TEXT;
+      ALTER TABLE projects.progress_report ADD COLUMN IF NOT EXISTS reviewer_name TEXT;
 
       CREATE TABLE IF NOT EXISTS projects.project_tree_node (
         id TEXT PRIMARY KEY,
@@ -1467,6 +1491,16 @@ class PostgresProjectRepository implements ProjectRepository {
     return result.rows.map(mapProgressRow);
   }
 
+  async reviewProgress(projectId: string, reportId: string, note: string, reviewer: string) {
+    const result = await this.pool.query(
+      `UPDATE projects.progress_report SET status = 'reviewed', review_note = $3,
+         reviewer_name = $4, updated_at = now()
+       WHERE project_id = $1 AND id = $2 AND status = 'submitted' RETURNING *`,
+      [projectId, reportId, note, reviewer]
+    );
+    return result.rows[0] ? mapProgressRow(result.rows[0]) : null;
+  }
+
   async createProgress(
     projectId: string,
     authorId: string,
@@ -1772,6 +1806,8 @@ function mapProgressRow(row: Record<string, unknown>): ProgressReport {
     nextPlan: row.next_plan ? String(row.next_plan) : undefined,
     helpNeeded: row.help_needed ? String(row.help_needed) : undefined,
     status: row.status ? (String(row.status) as ProgressReport["status"]) : undefined,
+    reviewNote: row.review_note == null ? undefined : String(row.review_note),
+    reviewerName: row.reviewer_name == null ? undefined : String(row.reviewer_name),
     createdAt: new Date(String(row.created_at)).toISOString(),
     updatedAt: new Date(String(row.updated_at)).toISOString()
   };
@@ -1846,7 +1882,14 @@ async function resolveUser(
   userId: string
 ): Promise<ManagedUser | null> {
   const users = await context.auth.listUsers?.("", true);
-  return users?.find((user) => user.id === userId && user.active) ?? null;
+  return (
+    users?.find(
+      (user) =>
+        user.id === userId &&
+        user.active &&
+        (!user.approvalStatus || user.approvalStatus === "approved")
+    ) ?? null
+  );
 }
 
 async function resolveUserByIdentityNo(
@@ -1859,7 +1902,10 @@ async function resolveUserByIdentityNo(
   const normalizedIdentityNo = identityNo.trim().toLowerCase();
   return (
     users?.find(
-      (user) => user.active && user.identityNo.trim().toLowerCase() === normalizedIdentityNo
+      (user) =>
+        user.active &&
+        (!user.approvalStatus || user.approvalStatus === "approved") &&
+        user.identityNo.trim().toLowerCase() === normalizedIdentityNo
     ) ?? null
   );
 }
@@ -2225,13 +2271,13 @@ export const projectsPlugin: PluginManifest = {
               userName: req.ownerName
             });
             if (!ownerUser) {
-              return { status: 400, body: { error: "必须指定存在的学生负责人" } };
+              return { status: 400, body: { error: "未找到已审核的学生负责人，请核对姓名和学号" } };
             }
             if (ownerUser.role !== "student" || ownerUser.identityType !== "student_no") {
               return { status: 400, body: { error: "项目负责人必须是带学号的学生账号" } };
             }
             const advisorUser =
-              req.advisorIdentityNo || req.advisorUserId
+              req.advisorName?.trim() || req.advisorIdentityNo?.trim() || req.advisorUserId
                 ? await resolveUserByIdentity(context, {
                     userId: req.advisorUserId,
                     identityNo: req.advisorIdentityNo,
@@ -2239,10 +2285,10 @@ export const projectsPlugin: PluginManifest = {
                   })
                 : null;
             if (
-              (req.advisorUserId || req.advisorIdentityNo) &&
+              (req.advisorUserId || req.advisorIdentityNo?.trim() || req.advisorName?.trim()) &&
               (!advisorUser || !["professor", "lab_admin"].includes(advisorUser.role))
             ) {
-              return { status: 400, body: { error: "导师必须是教授或实验室管理员" } };
+              return { status: 400, body: { error: "未找到有效导师，请核对姓名、工号和账号角色" } };
             }
 
             const project = await repo.createProject({
@@ -2407,6 +2453,9 @@ export const projectsPlugin: PluginManifest = {
             }
             if (user.displayName.trim() !== req.userName.trim()) {
               return { status: 400, body: { error: "姓名与学号/工号不匹配，请确认后再添加" } };
+            }
+            if (await repo.findMember(params.id, user.id)) {
+              return { status: 409, body: { error: "该账号已在项目中" } };
             }
             await repo.upsertMember(normalizeProjectMember(user, params.id, req.memberRole));
             return { status: 201, body: await repo.listMembers(params.id) };
@@ -2760,7 +2809,7 @@ export const projectsPlugin: PluginManifest = {
                 summary: req.summary?.trim() ?? "",
                 nextPlan: req.nextPlan?.trim() ?? "",
                 helpNeeded: req.helpNeeded?.trim() ?? "",
-                status: req.status ?? "submitted"
+                status: req.status === "draft" ? "draft" : "submitted"
               }
             );
             for (const memberWork of req.memberWork ?? []) {
@@ -2774,6 +2823,32 @@ export const projectsPlugin: PluginManifest = {
               });
             }
             return { status: 201, body: report };
+          }
+        },
+        {
+          method: "PATCH",
+          path: "/projects/:id/reports/:reportId/review",
+          permission: "project:read",
+          summary: "点评或确认汇报",
+          handler: async ({ actor, params, body }) => {
+            const denied = await ensureReadable(actor, params.id);
+            if (denied) return denied;
+            if (actor!.role !== "professor" && !isPrivilegedRole(actor!)) {
+              return { status: 403, body: { error: "仅教师或管理员可点评汇报" } };
+            }
+            const note = (body as { note?: unknown } | undefined)?.note ?? "";
+            if (typeof note !== "string" || note.trim().length > 2000) {
+              return { status: 400, body: { error: "点评不能超过 2000 字" } };
+            }
+            const report = await repo.reviewProgress(
+              params.id,
+              params.reportId,
+              note.trim(),
+              actor!.displayName ?? actor!.username ?? "审核人"
+            );
+            return report
+              ? { body: report }
+              : { status: 409, body: { error: "汇报不存在或已处理" } };
           }
         },
         {

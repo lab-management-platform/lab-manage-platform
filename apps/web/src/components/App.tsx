@@ -33,6 +33,7 @@ export function App() {
   const [activeView, setActiveView] = useState<AppView>("dashboard");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [notifiedFileId, setNotifiedFileId] = useState("");
 
   const lab = useLabData(token, actor);
 
@@ -230,7 +231,6 @@ export function App() {
               actor={actor}
               actorName={actor.displayName}
               summary={lab.summary}
-              categories={lab.inventoryCategories}
               projects={lab.projects}
               tasks={lab.projectTasks}
               materials={lab.materials}
@@ -262,7 +262,6 @@ export function App() {
               projectTreeSnapshots={lab.projectTreeSnapshots}
               members={lab.projectMembers}
               users={lab.users}
-              pendingRegistrations={lab.pendingRegistrations}
               onCreateProject={lab.createProject}
               onApproveProject={lab.approveProject}
               onCreateTask={lab.createTask}
@@ -277,6 +276,7 @@ export function App() {
               onCreateProjectTreeSnapshot={lab.createProjectTreeSnapshot}
               onCreateProjectReport={lab.createProjectReport}
               onLoadProjectReportDetail={lab.loadProjectReportDetail}
+              onReviewProjectReport={lab.reviewProjectReport}
               projectReportDetail={lab.projectReportDetail}
             />
           ) : null}
@@ -284,6 +284,7 @@ export function App() {
           {activeView === "inventory" ? (
             <InventoryPage
               actor={actor}
+              categories={lab.inventoryCategories}
               summary={lab.summary}
               materials={lab.materials}
               applications={lab.applications}
@@ -306,7 +307,9 @@ export function App() {
               selectedProjectId={selectedProjectId}
               files={lab.files}
               versions={lab.fileVersions}
+              initialFileId={notifiedFileId}
               onSelectFile={lab.loadFileVersions}
+              onDownloadVersion={lab.downloadFileVersion}
               onCreateProjectFile={lab.createProjectFile}
               onAddFileVersion={lab.addFileVersion}
             />
@@ -319,12 +322,26 @@ export function App() {
               selectedProjectId={selectedProjectId}
               meetings={lab.meetings}
               meetingAttendance={lab.meetingAttendance}
+              users={lab.users}
               notifications={lab.notifications}
               onCreateMeeting={lab.createMeeting}
               onUpdateMeetingMinutes={lab.updateMeetingMinutes}
               onUpdateMeetingAttendance={lab.updateMeetingAttendance}
               onPublishAnnouncement={lab.publishAnnouncement}
               onMarkNotificationRead={lab.markNotificationRead}
+              onOpenNotification={async (notification) => {
+                if (!notification.relatedId) return;
+                try {
+                  const file = await lab.findNotifiedFile(notification.relatedId);
+                  if (!file) throw new Error("资料已移除或当前账号没有访问权限");
+                  setSelectedProjectId(file.projectId ?? "");
+                  setNotifiedFileId(file.id);
+                  setActiveView("files");
+                  void lab.markNotificationRead(notification.id).catch(() => {});
+                } catch (error) {
+                  lab.setMessage(error instanceof Error ? error.message : "无法打开项目资料");
+                }
+              }}
             />
           ) : null}
 

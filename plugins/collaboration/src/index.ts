@@ -172,7 +172,12 @@ class MemoryCollaborationRepository implements CollaborationRepository {
 
   async listAttendance(actor: Actor): Promise<MeetingAttendance[]> {
     return this.attendance.filter(
-      (item) => item.actorId === actor.id || actor.permissions.includes("meeting:write")
+      (item) =>
+        item.actorId === actor.id ||
+        actor.role === "lab_admin" ||
+        this.meetings.some(
+          (meeting) => meeting.id === item.meetingId && meeting.createdBy === actor.id
+        )
     );
   }
 
@@ -435,11 +440,12 @@ class PostgresCollaborationRepository implements CollaborationRepository {
 
   async listAttendance(actor: Actor): Promise<MeetingAttendance[]> {
     const result = await this.pool.query(
-      `SELECT meeting_id, actor_id, status, reason, updated_at
-       FROM collaboration.meeting_attendance
-       WHERE actor_id = $1 OR $2 = true
-       ORDER BY updated_at DESC`,
-      [actor.id, actor.permissions.includes("meeting:write")]
+      `SELECT a.meeting_id, a.actor_id, a.status, a.reason, a.updated_at
+       FROM collaboration.meeting_attendance a
+       JOIN collaboration.meeting m ON m.id = a.meeting_id
+       WHERE a.actor_id = $1 OR m.created_by = $1 OR $2
+       ORDER BY a.updated_at DESC`,
+      [actor.id, actor.role === "lab_admin"]
     );
     return result.rows.map(mapAttendanceRow);
   }
@@ -738,7 +744,7 @@ export const collaborationPlugin: PluginManifest = {
     }
   ],
   eventsPublished: ["meeting.created", "meeting.minutes.updated", "notification.created"],
-  eventsSubscribed: [],
+  eventsSubscribed: ["files.project_file.published"],
   async activate(context) {
     const repository = createRepository();
     await repository.initialize();
@@ -755,6 +761,29 @@ export const collaborationPlugin: PluginManifest = {
         });
       }
     }
+
+    context.eventBus.subscribe<{
+      fileId: string;
+      projectId: string;
+      title: string;
+      actorId: string;
+    }>("files.project_file.published", async ({ payload }) => {
+      const recipients = await repository.listProjectRecipientIds(payload.projectId);
+      const notifications = await repository.createNotifications(
+        recipients
+          .filter((id) => id !== payload.actorId)
+          .map((recipientId) => ({
+            recipientId,
+            title: "项目资料已更新",
+            content: payload.title,
+            type: "system",
+            relatedType: "file",
+            relatedId: payload.fileId,
+            createdBy: payload.actorId
+          }))
+      );
+      await publishNotifications(notifications);
+    });
 
     return {
       name: "collaboration",
